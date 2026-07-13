@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-[#f6f7f9] text-slate-800 antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+  ::selection {
+    @apply bg-brand-600/15;
+  }
+  /* Consistent, subtle focus rings */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-brand-500/40;
+  }
+}
+
+@layer components {
+  /* ---- Buttons ---- */
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors duration-150 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-brand-600 text-white shadow-xs hover:bg-brand-700;
+  }
+  .btn-secondary {
+    @apply btn border border-slate-200 bg-white text-slate-700 shadow-xs hover:bg-slate-50;
+  }
+  .btn-ghost {
+    @apply btn text-slate-600 hover:bg-slate-100;
+  }
+  .btn-danger {
+    @apply btn text-rose-600 hover:bg-rose-50;
+  }
+  /* Square icon button */
+  .icon-btn {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 active:scale-95;
+  }
+
+  /* ---- Forms ---- */
+  /* NOTE: text-base (16px) on mobile is required — anything smaller makes
+     iOS Safari auto-zoom when the field is focused. Shrinks to 14px on sm+. */
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-base text-slate-900 shadow-xs outline-none transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/20 sm:text-sm;
+  }
+  select.input {
+    @apply cursor-pointer appearance-none pr-10;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 16px;
+  }
+  .label {
+    @apply mb-1.5 block text-xs font-medium text-slate-500;
+  }
+
+  /* ---- Surfaces ---- */
+  .card {
+    @apply rounded-2xl border border-slate-200/80 bg-white shadow-card;
+  }
+
+  /* ---- Badges ---- */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+  .badge-red { @apply badge bg-rose-50 text-rose-600; }
+  .badge-green { @apply badge bg-emerald-50 text-emerald-600; }
+  .badge-amber { @apply badge bg-amber-50 text-amber-600; }
+  .badge-brand { @apply badge bg-brand-50 text-brand-700; }
+  .badge-slate { @apply badge bg-slate-100 text-slate-600; }
+}
+
+/* ---- Animations ---- */
+@keyframes slideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+@keyframes sheetUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-slide-in { animation: slideIn 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+.animate-sheet-up { animation: sheetUp 0.32s cubic-bezier(0.32, 0.72, 0, 1); }
+.animate-fade-in { animation: fadeIn 0.2s ease-out; }
