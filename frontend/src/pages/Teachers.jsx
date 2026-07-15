@@ -8,7 +8,7 @@ import Payroll from '../components/Payroll.jsx';
 import Icon from '../components/Icon.jsx';
 import { Field, Avatar, EmptyState, Spinner, ErrorBanner, KV } from '../components/ui.jsx';
 import { useCollection } from '../lib/useCollection.js';
-import { money, perDay, chargeableLeaves, leaveDeduction, netSalary } from '../lib/format.js';
+import { money, perDay, chargeableDays, leaveDeduction, netSalary } from '../lib/format.js';
 
 const BLANK = {
   id: '', name: '', class: '', email: '', phone_1: '', phone_2: '',
@@ -287,8 +287,8 @@ export default function Teachers() {
                   <span className="font-medium text-slate-700">{editing.leave_days || 0}</span>
                 </div>
                 <div className="flex items-center justify-between text-slate-500">
-                  <span>Chargeable (after 1 free / month)</span>
-                  <span className="font-medium text-slate-700">{chargeableLeaves(editing)}</span>
+                  <span>Chargeable (after 1 paid / month)</span>
+                  <span className="font-medium text-slate-700">{chargeableDays(editing)} day{chargeableDays(editing) === 1 ? '' : 's'}</span>
                 </div>
                 <div className="flex items-center justify-between text-slate-500">
                   <span>Leave deduction (÷ 30-day month)</span>

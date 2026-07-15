@@ -4,7 +4,7 @@ import cors from 'cors';
 import {
   list, create, update, remove, usingSupabase,
   listPayments, addPayment, deletePayment,
-  listLeaves, addLeave, deleteLeave, listTeachers,
+  listLeaves, addLeave, addLeaveRange, deleteLeave, listTeachers,
   payrollPreview, getPayroll, generatePayroll, payrollMonths,
   authenticate, createSession, getSessionUser, deleteSession, ensureDefaultUsers,
 } from './db/store.js';
@@ -38,6 +38,22 @@ function requireFeature(feature) {
     }
     next();
   };
+}
+
+const userCan = (req, feature) => !!req.user && featuresForRole(req.user.role).includes(feature);
+
+// Remove fee fields from a student for users without the 'fees' feature.
+function stripFees(student) {
+  const { total_fees, paid_fees, ...rest } = student;
+  return rest;
+}
+// Prevent users without 'fees' from setting fee fields via create/update.
+function stripFeesFromBody(req, _res, next) {
+  if (!userCan(req, 'fees')) {
+    delete req.body.total_fees;
+    delete req.body.paid_fees;
+  }
+  next();
 }
 
 // Health / status (public)
@@ -99,7 +115,15 @@ function crudRoutes(table) {
   return router;
 }
 
-app.use('/api/students', requireFeature('students'), crudRoutes('students'));
+// Students list — hides fee fields from users without the 'fees' feature.
+app.get('/api/students', requireFeature('students'), async (req, res, next) => {
+  try {
+    let rows = await list('students');
+    if (!userCan(req, 'fees')) rows = rows.map(stripFees);
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+app.use('/api/students', requireFeature('students'), stripFeesFromBody, crudRoutes('students'));
 // Teachers GET is enriched with current-month leave stats (must be before the
 // generic router so it handles the list request).
 app.get('/api/teachers', requireFeature('teachers'), async (_req, res, next) => {
@@ -112,13 +136,13 @@ app.use('/api/classes', requireAuth, crudRoutes('classes'));
 app.use('/api/holidays', requireFeature('teachers'), crudRoutes('holidays'));
 
 // ---- Fee payments (installment history) for a student ----
-app.get('/api/students/:id/payments', requireFeature('students'), async (req, res, next) => {
+app.get('/api/students/:id/payments', requireFeature('fees'), async (req, res, next) => {
   try {
     res.json(await listPayments(req.params.id));
   } catch (e) { next(e); }
 });
 
-app.post('/api/students/:id/payments', requireFeature('students'), async (req, res, next) => {
+app.post('/api/students/:id/payments', requireFeature('fees'), async (req, res, next) => {
   try {
     const { amount } = req.body;
     if (!amount || Number(amount) <= 0) {
@@ -128,7 +152,7 @@ app.post('/api/students/:id/payments', requireFeature('students'), async (req, r
   } catch (e) { next(e); }
 });
 
-app.delete('/api/students/:id/payments/:paymentId', requireFeature('students'), async (req, res, next) => {
+app.delete('/api/students/:id/payments/:paymentId', requireFeature('fees'), async (req, res, next) => {
   try {
     const ok = await deletePayment(req.params.id, req.params.paymentId);
     if (!ok) return res.status(404).json({ error: 'Payment not found' });
@@ -172,7 +196,12 @@ app.get('/api/teachers/:id/leaves', requireFeature('teachers'), async (req, res,
 
 app.post('/api/teachers/:id/leaves', requireFeature('teachers'), async (req, res, next) => {
   try {
-    if (!req.body.date) return res.status(400).json({ error: 'A date is required' });
+    const { from, to, date } = req.body;
+    if (from && to) {
+      const added = await addLeaveRange(req.params.id, req.body);
+      return res.status(201).json({ added });
+    }
+    if (!date) return res.status(400).json({ error: 'A date is required' });
     res.status(201).json(await addLeave(req.params.id, req.body));
   } catch (e) { next(e); }
 });

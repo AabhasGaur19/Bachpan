@@ -117,24 +117,22 @@ export default function Payroll({ open, onClose }) {
               </p>
             ) : (
               <div className="space-y-2">
-                {data.rows.map((r) => {
-                  const free = (Number(r.leaves) || 0) - (Number(r.chargeable) || 0);
-                  return (
-                    <div key={r.teacher_id || r.id} className="flex items-center gap-3 rounded-xl border border-slate-200/80 p-3">
-                      <Avatar name={r.name} className="!h-9 !w-9 !text-xs" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-slate-900">{r.name}</p>
-                        <p className="truncate text-xs text-slate-500">
-                          {money(r.salary)}
-                          {r.leaves > 0 && <> · {r.leaves} leave{r.leaves === 1 ? '' : 's'}</>}
-                          {free > 0 && <span className="text-emerald-600"> · {free} paid</span>}
-                          {r.deduction > 0 && <span className="text-rose-500"> · − {money(r.deduction)}</span>}
-                        </p>
-                      </div>
-                      <p className="shrink-0 font-semibold tabular-nums text-slate-900">{money(r.net)}</p>
+                {data.rows.map((r) => (
+                  <div key={r.teacher_id || r.id} className="flex items-center gap-3 rounded-xl border border-slate-200/80 p-3">
+                    <Avatar name={r.name} className="!h-9 !w-9 !text-xs" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-slate-900">{r.name}</p>
+                      <p className="truncate text-xs text-slate-500">
+                        {money(r.salary)}
+                        {r.leaves > 0 && <> · {r.leaves} leave{r.leaves === 1 ? '' : 's'}</>}
+                        {r.deduction > 0
+                          ? <span className="text-rose-500"> · − {money(r.deduction)}</span>
+                          : r.leaves > 0 && <span className="text-emerald-600"> · no cut</span>}
+                      </p>
                     </div>
-                  );
-                })}
+                    <p className="shrink-0 font-semibold tabular-nums text-slate-900">{money(r.net)}</p>
+                  </div>
+                ))}
               </div>
             )}
 

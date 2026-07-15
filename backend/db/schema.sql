@@ -98,6 +98,7 @@ create table if not exists teacher_leaves (
   teacher_id  uuid references teachers(id) on delete cascade,
   date        date not null,
   reason      text,
+  type        text default 'full',   -- 'full' or 'half' (half-day = 0.5 day cut)
   created_at  timestamptz default now()
 );
 

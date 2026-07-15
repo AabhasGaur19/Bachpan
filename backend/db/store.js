@@ -19,11 +19,53 @@ const key = process.env.SUPABASE_SERVICE_KEY;
 export const usingSupabase = Boolean(url && key);
 const supabase = usingSupabase ? createClient(url, key) : null;
 
-// Teacher leave policy: 1 free leave per calendar month. Leave counts and the
-// salary deduction are always for the CURRENT month, so they reset each month.
+// Teacher leave policy:
+//  - 1 free (paid) FULL-DAY leave per calendar month.
+//  - Extra full-day leaves are charged 1 day each; half-day leaves are always
+//    charged 0.5 day (the free leave never applies to half-days, and two halves
+//    are NOT merged into a full day).
+//  - Counts/deductions are per CURRENT month, so they reset each month.
+//  - Unused monthly paid leaves accrue over the academic session and can be
+//    encashed at the end (see unusedPaidLeaveCount).
 const FREE_LEAVES_PER_MONTH = 1;
+const SESSION_START_MONTH = 4; // April = start of the academic session
 const currentMonth = () => new Date().toISOString().slice(0, 7); // 'YYYY-MM'
 const perDaySalary = (s) => (Number(s) || 0) / 30; // fixed 30-day month
+
+const ymOf = (dateStr) => String(dateStr).slice(0, 7);
+const isHalf = (l) => l.type === 'half';
+
+// Leave stats for one teacher's register within a given 'YYYY-MM'.
+function monthLeaveStats(leaves, ym) {
+  const inMonth = leaves.filter((l) => ymOf(l.date) === ym);
+  const full = inMonth.filter((l) => !isHalf(l)).length;
+  const half = inMonth.filter((l) => isHalf(l)).length;
+  const chargeableDays = Math.max(full - FREE_LEAVES_PER_MONTH, 0) + 0.5 * half;
+  return { count: inMonth.length, full, half, chargeableDays };
+}
+
+function sessionStartYm(now = new Date()) {
+  const y = now.getFullYear();
+  const startYear = (now.getMonth() + 1) >= SESSION_START_MONTH ? y : y - 1;
+  return `${startYear}-${String(SESSION_START_MONTH).padStart(2, '0')}`;
+}
+
+// Completed months this session (from join date onward) with NO full-day leave
+// taken — each is one unused paid leave that can be encashed at session end.
+function unusedPaidLeaveCount(leaves, joinDate, now = new Date()) {
+  const startYm = sessionStartYm(now);
+  const joinYm = joinDate ? ymOf(joinDate) : '0000-00';
+  let [yy, mm] = (startYm > joinYm ? startYm : joinYm).split('-').map(Number);
+  const curYm = now.toISOString().slice(0, 7);
+  let count = 0;
+  for (let guard = 0; guard < 24; guard++) {
+    const ym = `${yy}-${String(mm).padStart(2, '0')}`;
+    if (ym >= curYm) break; // only completed (past) months count
+    if (monthLeaveStats(leaves, ym).full === 0) count++;
+    mm++; if (mm > 12) { mm = 1; yy++; }
+  }
+  return count;
+}
 
 // Column each table is ordered by when listed.
 const ORDER = {
@@ -241,11 +283,12 @@ export async function listLeaves(teacherId) {
   return data;
 }
 
-export async function addLeave(teacherId, { date, reason }) {
+export async function addLeave(teacherId, { date, reason, type }) {
   const row = {
     teacher_id: teacherId,
     date: date || new Date().toISOString().slice(0, 10),
     reason: reason || '',
+    type: type === 'half' ? 'half' : 'full',
   };
   let created;
   if (!usingSupabase) {
@@ -259,6 +302,31 @@ export async function addLeave(teacherId, { date, reason }) {
   return created;
 }
 
+// Add a full-day leave for every date in [from, to] (inclusive) at once.
+export async function addLeaveRange(teacherId, { from, to, reason }) {
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+  if (isNaN(start) || isNaN(end) || start > end) throw new Error('Invalid date range');
+
+  const rows = [];
+  for (let d = new Date(start); d <= end && rows.length < 366; d.setDate(d.getDate() + 1)) {
+    rows.push({
+      teacher_id: teacherId,
+      date: d.toISOString().slice(0, 10),
+      reason: reason || '',
+      type: 'full',
+    });
+  }
+  if (!usingSupabase) {
+    rows.forEach((r) => memCreate('teacher_leaves', r));
+  } else {
+    const { error } = await supabase.from('teacher_leaves').insert(rows);
+    if (error) throw error;
+  }
+  await syncTeacherLeaves(teacherId);
+  return rows.length;
+}
+
 export async function deleteLeave(teacherId, leaveId) {
   if (!usingSupabase) {
     if (!memRemove('teacher_leaves', leaveId)) return false;
@@ -270,17 +338,19 @@ export async function deleteLeave(teacherId, leaveId) {
   return true;
 }
 
-// Recompute this month's leave count + chargeable leaves for a teacher.
+// Recompute this month's leave count for a teacher (rough stored value; the
+// authoritative figures are computed fresh in listTeachers on every read).
 async function syncTeacherLeaves(teacherId) {
   const leaves = await listLeaves(teacherId);
-  const month = currentMonth();
-  const taken = leaves.filter((l) => String(l.date).slice(0, 7) === month).length;
-  const chargeable = Math.max(taken - FREE_LEAVES_PER_MONTH, 0);
-  await update('teachers', teacherId, { leave_days: taken, chargeable_leaves: chargeable });
+  const s = monthLeaveStats(leaves, currentMonth());
+  await update('teachers', teacherId, {
+    leave_days: s.count,
+    chargeable_leaves: Math.round(s.chargeableDays),
+  });
 }
 
-// Teachers list enriched with CURRENT-MONTH leave stats (recomputed on every
-// read, so counts and deductions reset automatically when the month changes).
+// Teachers list enriched with CURRENT-MONTH leave stats + session carry-over
+// (recomputed on every read, so it resets automatically each month).
 export async function listTeachers() {
   const teachers = await list('teachers');
   const month = currentMonth();
@@ -293,10 +363,17 @@ export async function listTeachers() {
     allLeaves = data;
   }
   return teachers.map((t) => {
-    const taken = allLeaves.filter(
-      (l) => String(l.teacher_id) === String(t.id) && String(l.date).slice(0, 7) === month
-    ).length;
-    return { ...t, leave_days: taken, chargeable_leaves: Math.max(taken - FREE_LEAVES_PER_MONTH, 0) };
+    const leaves = allLeaves.filter((l) => String(l.teacher_id) === String(t.id));
+    const s = monthLeaveStats(leaves, month);
+    return {
+      ...t,
+      leave_days: s.count,
+      full_this_month: s.full,
+      half_this_month: s.half,
+      chargeable_days: s.chargeableDays,
+      chargeable_leaves: Math.round(s.chargeableDays),
+      unused_paid_leaves: unusedPaidLeaveCount(leaves, t.join_date),
+    };
   });
 }
 
@@ -313,15 +390,14 @@ export async function payrollPreview(month) {
   const teachers = await list('teachers');
   const allLeaves = await getAllLeaves();
   return teachers.map((t) => {
-    const leaves = allLeaves.filter(
-      (l) => String(l.teacher_id) === String(t.id) && String(l.date).slice(0, 7) === month
-    ).length;
-    const chargeable = Math.max(leaves - FREE_LEAVES_PER_MONTH, 0);
+    const leaves = allLeaves.filter((l) => String(l.teacher_id) === String(t.id));
+    const s = monthLeaveStats(leaves, month);
     const salary = Number(t.salary) || 0;
-    const deduction = Math.round(perDaySalary(salary) * chargeable);
+    const deduction = Math.round(perDaySalary(salary) * s.chargeableDays);
     return {
       teacher_id: t.id, name: t.name, class: t.class || '',
-      salary, leaves, chargeable, deduction, net: Math.max(salary - deduction, 0),
+      salary, leaves: s.count, chargeable: s.chargeableDays,
+      deduction, net: Math.max(salary - deduction, 0),
     };
   });
 }

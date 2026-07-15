@@ -8,6 +8,7 @@ import Icon from '../components/Icon.jsx';
 import { Field, Avatar, EmptyState, Spinner, ErrorBanner } from '../components/ui.jsx';
 import { useCollection } from '../lib/useCollection.js';
 import { api } from '../lib/api.js';
+import { useAuth } from '../lib/auth.jsx';
 import { money, feesLeft } from '../lib/format.js';
 
 const BLANK = {
@@ -22,6 +23,8 @@ export default function Students() {
   const { items, error, saving, save, remove, reload, setError } = useCollection('students');
   const classesCol = useCollection('classes');
   const classes = classesCol.items || [];
+  const { can } = useAuth();
+  const canFees = can('fees');
 
   const [search, setSearch] = useState('');
   const [selectedClass, setSelectedClass] = useState(null);
@@ -117,9 +120,9 @@ export default function Students() {
             {s.registration_number ? ` · ${s.registration_number}` : ''}
           </p>
         </div>
-        {left > 0
+        {canFees && (left > 0
           ? <span className="badge-red shrink-0">{money(left)}</span>
-          : <span className="badge-green shrink-0"><Icon name="check" size={13} /> Paid</span>}
+          : <span className="badge-green shrink-0"><Icon name="check" size={13} /> Paid</span>)}
         <span className="shrink-0 text-slate-300"><Icon name="chevron-right" size={18} /></span>
       </button>
     );
@@ -257,7 +260,8 @@ export default function Students() {
                 onChange={(e) => setEditing({ ...editing, address: e.target.value })} />
             </Field>
 
-            {/* Fees */}
+            {/* Fees — only for users with the 'fees' feature */}
+            {canFees && (
             <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4">
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Fees</p>
               <div className="grid grid-cols-2 gap-3">
@@ -297,6 +301,7 @@ export default function Students() {
                 <p className="mt-2 text-xs text-slate-400">Optional — records the first payment now.</p>
               )}
             </div>
+            )}
 
             <div className="flex gap-2 pt-1">
               <button type="submit" className="btn-primary flex-1" disabled={saving}>
@@ -310,6 +315,7 @@ export default function Students() {
 
       <StudentDetail
         student={detailFor}
+        showFees={canFees}
         onClose={() => setDetailFor(null)}
         onEdit={() => { setEditing(detailFor); setDetailFor(null); }}
         onFees={() => { setFeesFor(detailFor); setDetailFor(null); }}

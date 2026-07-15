@@ -55,6 +55,8 @@ export const api = {
   listLeaves: (teacherId) => request(`/api/teachers/${teacherId}/leaves`),
   addLeave: (teacherId, data) =>
     request(`/api/teachers/${teacherId}/leaves`, { method: 'POST', body: JSON.stringify(data) }),
+  addLeaveRange: (teacherId, data) =>
+    request(`/api/teachers/${teacherId}/leaves`, { method: 'POST', body: JSON.stringify(data) }),
   removeLeave: (teacherId, leaveId) =>
     request(`/api/teachers/${teacherId}/leaves/${leaveId}`, { method: 'DELETE' }),
 

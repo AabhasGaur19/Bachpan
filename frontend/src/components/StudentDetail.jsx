@@ -4,7 +4,7 @@ import { Avatar, KV } from './ui.jsx';
 import { money, feesLeft } from '../lib/format.js';
 
 // Full detail view for one student, opened by tapping a card.
-export default function StudentDetail({ student, onClose, onEdit, onFees, onDelete }) {
+export default function StudentDetail({ student, showFees = true, onClose, onEdit, onFees, onDelete }) {
   const s = student;
   const total = Number(s?.total_fees) || 0;
   const paid = Number(s?.paid_fees) || 0;
@@ -25,7 +25,8 @@ export default function StudentDetail({ student, onClose, onEdit, onFees, onDele
             </p>
           </div>
 
-          {/* Fees */}
+          {/* Fees — only for users with the 'fees' feature */}
+          {showFees && (
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4">
             <div className="grid grid-cols-3 divide-x divide-slate-200 text-center">
               <div className="px-1">
@@ -50,6 +51,7 @@ export default function StudentDetail({ student, onClose, onEdit, onFees, onDele
               <Icon name="wallet" size={16} /> Payments & history
             </button>
           </div>
+          )}
 
           {/* Details */}
           <dl className="grid grid-cols-2 gap-x-4 gap-y-5">

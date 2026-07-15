@@ -46,10 +46,10 @@ export const sampleHolidays = [
 
 // Individual teacher leaves (register). Priya took 3 in July -> 1 free, 2 charged.
 export const sampleTeacherLeaves = [
-  { id: 'tl1', teacher_id: 't1', date: '2026-07-05', reason: 'Personal' },
-  { id: 'tl2', teacher_id: 't3', date: '2026-07-03', reason: 'Sick leave' },
-  { id: 'tl3', teacher_id: 't3', date: '2026-07-10', reason: 'Personal' },
-  { id: 'tl4', teacher_id: 't3', date: '2026-07-18', reason: 'Family function' },
+  { id: 'tl1', teacher_id: 't1', date: '2026-07-05', reason: 'Personal', type: 'full' },
+  { id: 'tl2', teacher_id: 't3', date: '2026-07-03', reason: 'Sick leave', type: 'full' },
+  { id: 'tl3', teacher_id: 't3', date: '2026-07-10', reason: 'Personal', type: 'half' },
+  { id: 'tl4', teacher_id: 't3', date: '2026-07-18', reason: 'Family function', type: 'full' },
 ];
 
 // A saved payroll snapshot for LAST month (June 2026) so there is history to see.
