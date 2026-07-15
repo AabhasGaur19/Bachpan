@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import SectionLayout from '../components/SectionLayout.jsx';
 import SlidePanel from '../components/SlidePanel.jsx';
 import Icon from '../components/Icon.jsx';
-import { Field, EmptyState, Spinner, ErrorBanner } from '../components/ui.jsx';
+import { Field, EmptyState, Skeleton, CardsSkeleton, ErrorBanner } from '../components/ui.jsx';
 import { useCollection } from '../lib/useCollection.js';
 
 const BLANK = { id: '', name: '', variants: [{ label: '', quantity: '' }] };
@@ -91,7 +91,15 @@ export default function Inventory() {
       )}
 
       {filtered === null ? (
-        <Spinner />
+        <>
+          {!stats && (
+            <div className="mb-5 grid grid-cols-2 gap-3">
+              <Skeleton className="h-[70px] rounded-2xl" />
+              <Skeleton className="h-[70px] rounded-2xl" />
+            </div>
+          )}
+          <CardsSkeleton cols="sm:grid-cols-2 xl:grid-cols-3" />
+        </>
       ) : filtered.length === 0 ? (
         <EmptyState icon="package" message={search ? 'No items match your search.' : 'No items yet. Tap “Add item” to create one.'} />
       ) : (

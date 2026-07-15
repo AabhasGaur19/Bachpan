@@ -8,7 +8,7 @@ import Students from './pages/Students.jsx';
 import Teachers from './pages/Teachers.jsx';
 import Inventory from './pages/Inventory.jsx';
 import Login from './pages/Login.jsx';
-import BootGate from './components/BootGate.jsx';
+import BootGate, { Loader } from './components/BootGate.jsx';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
 
 // Must be logged in.
@@ -28,6 +28,7 @@ function RequireFeature({ feature, children }) {
 
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
+  { path: '/loader', element: <Loader /> }, // preview-only: the loading screen
   {
     path: '/',
     element: <RequireAuth><App /></RequireAuth>,

@@ -52,6 +52,28 @@ export function Spinner() {
   );
 }
 
+// Shimmering placeholder block.
+export function Skeleton({ className = '' }) {
+  return <div className={`animate-pulse rounded bg-slate-200/70 ${className}`} />;
+}
+
+// A grid of placeholder cards shown while a section's data loads.
+export function CardsSkeleton({ count = 6, cols = 'sm:grid-cols-2 xl:grid-cols-3' }) {
+  return (
+    <div className={`grid gap-3 ${cols}`} aria-hidden="true">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="card flex items-center gap-3.5 p-4">
+          <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-2/3" />
+            <Skeleton className="h-3 w-1/3" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ErrorBanner({ message, onRetry }) {
   if (!message) return null;
   return (

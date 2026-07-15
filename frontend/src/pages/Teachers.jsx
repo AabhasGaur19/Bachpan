@@ -6,7 +6,7 @@ import HolidayManager from '../components/HolidayManager.jsx';
 import TeacherLeaves from '../components/TeacherLeaves.jsx';
 import Payroll from '../components/Payroll.jsx';
 import Icon from '../components/Icon.jsx';
-import { Field, Avatar, EmptyState, Spinner, ErrorBanner, KV } from '../components/ui.jsx';
+import { Field, Avatar, EmptyState, CardsSkeleton, ErrorBanner, KV } from '../components/ui.jsx';
 import { useCollection } from '../lib/useCollection.js';
 import { money, perDay, chargeableDays, leaveDeduction, netSalary } from '../lib/format.js';
 
@@ -150,7 +150,9 @@ export default function Teachers() {
   }
 
   function renderBody() {
-    if (items === null || classesCol.items === null) return <Spinner />;
+    if (items === null || classesCol.items === null) {
+      return <CardsSkeleton cols="sm:grid-cols-2 lg:grid-cols-3" />;
+    }
 
     if (searching) {
       return (
