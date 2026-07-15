@@ -106,10 +106,6 @@ export default function Landing() {
             </button>
           ))}
         </div>
-
-        <p className="mt-auto pt-12 text-xs text-slate-400">
-          Signed in as {user?.username}. Data is stored locally until Supabase is connected.
-        </p>
       </div>
     </div>
   );
