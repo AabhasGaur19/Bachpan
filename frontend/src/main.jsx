@@ -8,6 +8,7 @@ import Students from './pages/Students.jsx';
 import Teachers from './pages/Teachers.jsx';
 import Inventory from './pages/Inventory.jsx';
 import Login from './pages/Login.jsx';
+import BootGate from './components/BootGate.jsx';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
 
 // Must be logged in.
@@ -42,7 +43,9 @@ const router = createBrowserRouter([
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <AuthProvider>
-      <RouterProvider router={router} />
+      <BootGate>
+        <RouterProvider router={router} />
+      </BootGate>
     </AuthProvider>
   </React.StrictMode>
 );

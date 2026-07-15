@@ -440,3 +440,21 @@ export async function deleteSession(token) {
     await supabase.from('sessions').delete().eq('token', token);
   }
 }
+
+// On Supabase: if the users table is empty, seed the default login accounts
+// (admin / coordinator) so you can log in right after connecting. No-op locally
+// (those users are already in the seed) and no-op if any users already exist.
+export async function ensureDefaultUsers() {
+  if (!usingSupabase) return;
+  const { count, error } = await supabase.from('users').select('id', { count: 'exact', head: true });
+  if (error) throw error;
+  if ((count || 0) > 0) return;
+  const rows = sampleUsers.map((u) => {
+    const { id, password, ...rest } = u; // let Supabase generate the uuid id
+    const { salt, hash } = hashPassword(password);
+    return { ...rest, salt, password_hash: hash };
+  });
+  const { error: insErr } = await supabase.from('users').insert(rows);
+  if (insErr) throw insErr;
+  console.log('Seeded default login users into Supabase: admin, coordinator');
+}

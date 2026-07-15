@@ -6,7 +6,7 @@ import {
   listPayments, addPayment, deletePayment,
   listLeaves, addLeave, deleteLeave, listTeachers,
   payrollPreview, getPayroll, generatePayroll, payrollMonths,
-  authenticate, createSession, getSessionUser, deleteSession,
+  authenticate, createSession, getSessionUser, deleteSession, ensureDefaultUsers,
 } from './db/store.js';
 import { featuresForRole } from './auth/roles.js';
 
@@ -192,7 +192,12 @@ app.use((err, _req, res, _next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n🏫  Bachpan API running on http://localhost:${PORT}`);
   console.log(`    Storage: ${usingSupabase ? 'Supabase (PostgreSQL)' : 'local file db/data.json (add Supabase creds in .env to switch)'}\n`);
+  try {
+    await ensureDefaultUsers();
+  } catch (e) {
+    console.error('Could not seed default users:', e.message);
+  }
 });

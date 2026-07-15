@@ -133,6 +133,8 @@ create table if not exists inventory (
   created_at timestamptz default now()
 );
 
--- Note: The backend uses the SERVICE key and talks to these tables directly,
--- so Row Level Security is not required for the current (no-login) phase.
--- When you add staff login later, enable RLS and add policies here.
+-- Note: The backend connects with the Supabase SERVICE key and enforces access
+-- itself (login + roles in backend/auth/roles.js), so Row Level Security is not
+-- required. Keep the service key secret (server-side only, never in the frontend).
+-- The default login users (admin / coordinator) are auto-created by the backend
+-- on first connect if the users table is empty.
