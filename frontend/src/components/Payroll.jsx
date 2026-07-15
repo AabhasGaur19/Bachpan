@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import SlidePanel from './SlidePanel.jsx';
 import Icon from './Icon.jsx';
-import { Avatar, Spinner, ErrorBanner } from './ui.jsx';
+import { Avatar, Skeleton, RowsSkeleton, ErrorBanner } from './ui.jsx';
 import { money } from '../lib/format.js';
 import { api } from '../lib/api.js';
 
@@ -85,7 +85,10 @@ export default function Payroll({ open, onClose }) {
         </div>
 
         {data === null ? (
-          <Spinner />
+          <>
+            <Skeleton className="h-28 rounded-2xl" />
+            <RowsSkeleton count={4} />
+          </>
         ) : (
           <>
             {/* Grand total */}

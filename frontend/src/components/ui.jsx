@@ -57,6 +57,23 @@ export function Skeleton({ className = '' }) {
   return <div className={`animate-pulse rounded bg-slate-200/70 ${className}`} />;
 }
 
+// A list of placeholder rows shown while a panel's list loads.
+export function RowsSkeleton({ count = 3 }) {
+  return (
+    <ul className="space-y-2" aria-hidden="true">
+      {Array.from({ length: count }).map((_, i) => (
+        <li key={i} className="flex items-center gap-3 rounded-xl border border-slate-200/80 px-3 py-2.5">
+          <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-1/3" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 // A grid of placeholder cards shown while a section's data loads.
 export function CardsSkeleton({ count = 6, cols = 'sm:grid-cols-2 xl:grid-cols-3' }) {
   return (

@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../components/Icon.jsx';
+import { Loader } from '../components/BootGate.jsx';
 import { useAuth } from '../lib/auth.jsx';
+
+// How long to show the welcome loader after a successful login.
+const WELCOME_MS = 2600;
 
 export default function Login() {
   const { login } = useAuth();
@@ -10,19 +14,23 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [entering, setEntering] = useState(false);
 
   async function submit(e) {
     e.preventDefault();
     setBusy(true); setError('');
     try {
       await login(username.trim(), password);
-      navigate('/', { replace: true });
+      setEntering(true); // show the fun loader briefly, then go in
+      setTimeout(() => navigate('/', { replace: true }), WELCOME_MS);
     } catch (err) {
       setError(err.message || 'Could not sign in');
-    } finally {
       setBusy(false);
     }
   }
+
+  // After a successful login, show the students-activities loader for a moment.
+  if (entering) return <Loader />;
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center px-5 py-10">

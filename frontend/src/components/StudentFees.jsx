@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import SlidePanel from './SlidePanel.jsx';
 import Icon from './Icon.jsx';
-import { Field, Spinner, ErrorBanner } from './ui.jsx';
+import { Field, RowsSkeleton, ErrorBanner } from './ui.jsx';
 import { money } from '../lib/format.js';
 import { api } from '../lib/api.js';
 
@@ -110,7 +110,7 @@ export default function StudentFees({ student, onClose, onChanged }) {
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Payment history</p>
             {payments === null ? (
-              <Spinner />
+              <RowsSkeleton />
             ) : payments.length === 0 ? (
               <p className="rounded-xl border border-dashed border-slate-200 py-8 text-center text-sm text-slate-400">
                 No payments recorded yet.
