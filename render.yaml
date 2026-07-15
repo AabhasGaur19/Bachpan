@@ -1,0 +1,21 @@
+# Render Blueprint for the Bachpan backend API.
+# You can either use this file (Render -> New -> Blueprint) OR set the same
+# values manually in the dashboard (see the deploy steps).
+#
+# The two secret values are marked `sync: false`, so Render will ASK you to type
+# them in when you deploy — they are never stored in this repo.
+
+services:
+  - type: web
+    name: bachpan-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false

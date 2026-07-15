@@ -4,6 +4,9 @@
   "description": "School management API (Students, Teachers, Inventory)",
   "type": "module",
   "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js"
