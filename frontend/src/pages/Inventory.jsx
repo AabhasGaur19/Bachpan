@@ -2,70 +2,76 @@ import { useMemo, useState } from 'react';
 import SectionLayout from '../components/SectionLayout.jsx';
 import SlidePanel from '../components/SlidePanel.jsx';
 import Icon from '../components/Icon.jsx';
-import { Field, EmptyState, Spinner, ErrorBanner, KV } from '../components/ui.jsx';
+import { Field, EmptyState, Spinner, ErrorBanner } from '../components/ui.jsx';
 import { useCollection } from '../lib/useCollection.js';
 
-const BLANK = {
-  id: '', item_name: '', category: '', quantity: 0, unit: 'pcs',
-  reorder_level: 0, supplier: '', last_ordered: '',
-};
+const BLANK = { id: '', name: '', variants: [{ label: '', quantity: '' }] };
 
-const isLow = (i) => Number(i.quantity) <= Number(i.reorder_level);
+const variantsOf = (i) =>
+  Array.isArray(i.variants) && i.variants.length
+    ? i.variants
+    : [{ label: '', quantity: i.quantity ?? 0 }];
+
+const totalUnits = (i) => variantsOf(i).reduce((s, v) => s + (Number(v.quantity) || 0), 0);
 
 export default function Inventory() {
   const { items, error, saving, save, remove, setError } = useCollection('inventory');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
-  const [ordering, setOrdering] = useState(null);
-  const [orderQty, setOrderQty] = useState(0);
 
   const filtered = useMemo(() => {
     if (!items) return null;
     const q = search.trim().toLowerCase();
-    const base = !q ? items : items.filter((i) =>
-      [i.item_name, i.category, i.supplier].join(' ').toLowerCase().includes(q));
-    return [...base].sort((a, b) => (isLow(b) ? 1 : 0) - (isLow(a) ? 1 : 0));
+    if (!q) return items;
+    return items.filter((i) =>
+      [i.name, ...variantsOf(i).map((v) => v.label)].join(' ').toLowerCase().includes(q));
   }, [items, search]);
 
   const stats = useMemo(() => {
     if (!items) return null;
-    return {
-      total: items.length,
-      low: items.filter(isLow).length,
-      categories: new Set(items.map((i) => i.category).filter(Boolean)).size,
-    };
+    return { count: items.length, units: items.reduce((s, i) => s + totalUnits(i), 0) };
   }, [items]);
+
+  function startAdd() {
+    setEditing({ ...BLANK, variants: [{ label: '', quantity: '' }] });
+  }
+  function startEdit(i) {
+    setEditing({
+      id: i.id,
+      name: i.name || '',
+      variants: variantsOf(i).map((v) => ({ label: v.label || '', quantity: v.quantity ?? '' })),
+    });
+  }
+
+  function setVariant(idx, patch) {
+    setEditing((e) => ({ ...e, variants: e.variants.map((v, i) => (i === idx ? { ...v, ...patch } : v)) }));
+  }
+  function addVariant() {
+    setEditing((e) => ({ ...e, variants: [...e.variants, { label: '', quantity: '' }] }));
+  }
+  function removeVariant(idx) {
+    setEditing((e) => ({ ...e, variants: e.variants.filter((_, i) => i !== idx) }));
+  }
+
+  const editingTotal = editing
+    ? editing.variants.reduce((s, v) => s + (Number(v.quantity) || 0), 0)
+    : 0;
 
   async function handleSave(e) {
     e.preventDefault();
-    if (!editing.item_name.trim()) return setError('Item name is required');
-    const payload = {
-      ...editing,
-      quantity: Number(editing.quantity) || 0,
-      reorder_level: Number(editing.reorder_level) || 0,
-    };
+    if (!editing.name.trim()) return setError('Item name is required');
+
+    let variants = editing.variants
+      .filter((v) => String(v.label).trim() !== '' || Number(v.quantity) > 0)
+      .map((v) => ({ label: String(v.label).trim(), quantity: Number(v.quantity) || 0 }));
+    if (variants.length === 0) variants = [{ label: '', quantity: 0 }];
+
+    const payload = { id: editing.id, name: editing.name.trim(), variants };
     if (await save(payload)) setEditing(null);
   }
 
   async function handleDelete(i) {
-    if (confirm(`Delete "${i.item_name}"?`)) await remove(i.id);
-  }
-
-  function openOrder(i) {
-    setOrdering(i);
-    setOrderQty(Math.max(Number(i.reorder_level) * 2 - Number(i.quantity), 1));
-  }
-
-  async function confirmOrder(e) {
-    e.preventDefault();
-    const add = Number(orderQty) || 0;
-    const payload = {
-      ...ordering,
-      quantity: Number(ordering.quantity) + add,
-      last_ordered: new Date().toISOString().slice(0, 10),
-    };
-    delete payload.created_at;
-    if (await save(payload)) setOrdering(null);
+    if (confirm(`Delete "${i.name}"?`)) await remove(i.id);
   }
 
   return (
@@ -73,52 +79,46 @@ export default function Inventory() {
       iconName="package" title="Inventory" accent="bg-amber-50 text-amber-600"
       count={items ? items.length : null}
       search={search} onSearch={setSearch}
-      onAdd={() => setEditing({ ...BLANK })} addLabel="Add"
+      onAdd={startAdd} addLabel="Add item"
     >
       <ErrorBanner message={error} />
 
       {stats && (
-        <div className="mb-5 grid grid-cols-3 gap-3">
-          <Stat label="Total items" value={stats.total} tone="slate" />
-          <Stat label="Low stock" value={stats.low} tone={stats.low ? 'red' : 'green'} />
-          <Stat label="Categories" value={stats.categories} tone="slate" />
+        <div className="mb-5 grid grid-cols-2 gap-3">
+          <Stat label="Items" value={stats.count} />
+          <Stat label="Total quantity" value={stats.units} />
         </div>
       )}
 
       {filtered === null ? (
         <Spinner />
       ) : filtered.length === 0 ? (
-        <EmptyState icon="package" message={search ? 'No items match your search.' : 'No inventory yet. Tap “Add” to create one.'} />
+        <EmptyState icon="package" message={search ? 'No items match your search.' : 'No items yet. Tap “Add item” to create one.'} />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((i) => {
-            const low = isLow(i);
+            const vs = variantsOf(i);
+            const labelled = vs.some((v) => v.label);
             return (
-              <div key={i.id} className={`card flex flex-col p-4 ${low ? 'ring-1 ring-rose-100' : ''}`}>
+              <div key={i.id} className="card flex flex-col p-4">
                 <div className="flex items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-semibold text-slate-900">{i.item_name}</p>
-                    <p className="truncate text-[13px] text-slate-500">{i.category || '—'}</p>
-                  </div>
-                  {low
-                    ? <span className="badge-red shrink-0"><Icon name="alert" size={13} /> Low</span>
-                    : <span className="badge-green shrink-0"><Icon name="check" size={13} /> OK</span>}
+                  <p className="min-w-0 flex-1 truncate text-[15px] font-semibold text-slate-900">{i.name}</p>
+                  <span className="badge-slate shrink-0">{totalUnits(i)}</span>
                 </div>
-                <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5">
-                  <KV label="In stock" value={`${i.quantity} ${i.unit || ''}`.trim()} className={low ? 'text-rose-600' : ''} />
-                  <KV label="Reorder at" value={String(i.reorder_level)} />
-                  <KV label="Supplier" value={i.supplier} />
-                  <KV label="Last ordered" value={i.last_ordered} />
-                </dl>
+
+                {labelled && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {vs.map((v, idx) => (
+                      <span key={idx} className="badge-slate">
+                        {v.label} · <b className="text-slate-900">{v.quantity}</b>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
                 <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
-                  <button
-                    className={`btn flex-1 py-2 ${low ? 'bg-amber-500 text-white hover:bg-amber-600' : 'btn-secondary'}`}
-                    onClick={() => openOrder(i)}
-                  >
-                    <Icon name="cart" size={16} /> Order
-                  </button>
-                  <button className="btn-secondary px-3 py-2" onClick={() => setEditing(i)} aria-label="Edit">
-                    <Icon name="pencil" size={15} />
+                  <button className="btn-secondary flex-1 py-2" onClick={() => startEdit(i)}>
+                    <Icon name="pencil" size={15} /> Edit
                   </button>
                   <button className="btn-danger px-3 py-2" onClick={() => handleDelete(i)} aria-label="Delete">
                     <Icon name="trash" size={16} />
@@ -130,40 +130,50 @@ export default function Inventory() {
         </div>
       )}
 
-      {/* Add / Edit item */}
+      {/* Add / Edit */}
       <SlidePanel open={!!editing} title={editing?.id ? 'Edit item' : 'Add item'} onClose={() => setEditing(null)}>
         {editing && (
           <form onSubmit={handleSave} className="space-y-4">
             <Field label="Item name">
-              <input className="input" value={editing.item_name} placeholder="e.g. Notebooks"
-                onChange={(e) => setEditing({ ...editing, item_name: e.target.value })} autoFocus />
+              <input className="input" value={editing.name} placeholder="e.g. Shoes"
+                onChange={(e) => setEditing({ ...editing, name: e.target.value })} autoFocus />
             </Field>
-            <Field label="Category">
-              <input className="input" value={editing.category} placeholder="Stationery, Furniture…"
-                onChange={(e) => setEditing({ ...editing, category: e.target.value })} />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Quantity in stock">
-                <input type="number" min="0" className="input" value={editing.quantity}
-                  onChange={(e) => setEditing({ ...editing, quantity: e.target.value })} />
-              </Field>
-              <Field label="Unit">
-                <input className="input" value={editing.unit} placeholder="pcs, box, kg…"
-                  onChange={(e) => setEditing({ ...editing, unit: e.target.value })} />
-              </Field>
-              <Field label="Reorder level">
-                <input type="number" min="0" className="input" value={editing.reorder_level}
-                  onChange={(e) => setEditing({ ...editing, reorder_level: e.target.value })} />
-              </Field>
-              <Field label="Last ordered">
-                <input type="date" className="input" value={editing.last_ordered || ''}
-                  onChange={(e) => setEditing({ ...editing, last_ordered: e.target.value })} />
-              </Field>
+
+            {/* Parameters */}
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Parameters</p>
+                <span className="text-xs text-slate-400">Total: <b className="text-slate-700">{editingTotal}</b></span>
+              </div>
+
+              <div className="space-y-2">
+                {editing.variants.map((v, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      className="input" value={v.label} placeholder="e.g. Size 9"
+                      onChange={(e) => setVariant(idx, { label: e.target.value })}
+                    />
+                    <input
+                      type="number" min="0" className="input w-24 shrink-0" value={v.quantity} placeholder="Qty"
+                      onChange={(e) => setVariant(idx, { quantity: e.target.value })}
+                    />
+                    <button
+                      type="button" className="icon-btn shrink-0 text-rose-500 hover:bg-rose-50 disabled:opacity-30"
+                      onClick={() => removeVariant(idx)} disabled={editing.variants.length <= 1} aria-label="Remove"
+                    >
+                      <Icon name="x" size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <button type="button" className="btn-secondary mt-2 w-full py-2" onClick={addVariant}>
+                <Icon name="plus" size={15} /> Add parameter
+              </button>
+              <p className="mt-2 text-xs text-slate-400">
+                Name each row yourself (e.g. “Size 9”) with its quantity. For a single count, use one row and leave the name blank.
+              </p>
             </div>
-            <Field label="Supplier">
-              <input className="input" value={editing.supplier}
-                onChange={(e) => setEditing({ ...editing, supplier: e.target.value })} />
-            </Field>
 
             <div className="flex gap-2 pt-1">
               <button type="submit" className="btn-primary flex-1" disabled={saving}>
@@ -174,45 +184,15 @@ export default function Inventory() {
           </form>
         )}
       </SlidePanel>
-
-      {/* Order / restock */}
-      <SlidePanel open={!!ordering} title="Place order" onClose={() => setOrdering(null)}>
-        {ordering && (
-          <form onSubmit={confirmOrder} className="space-y-4">
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4">
-              <p className="font-semibold text-slate-900">{ordering.item_name}</p>
-              <p className="mt-0.5 text-sm text-slate-500">
-                {ordering.quantity} {ordering.unit} in stock · reorder at {ordering.reorder_level}
-              </p>
-              {ordering.supplier && <p className="mt-1 text-sm text-slate-500">Supplier: {ordering.supplier}</p>}
-            </div>
-            <Field label="Quantity to order">
-              <input type="number" min="1" className="input" value={orderQty} autoFocus
-                onChange={(e) => setOrderQty(e.target.value)} />
-            </Field>
-            <p className="text-sm text-slate-500">
-              New stock after receiving:{' '}
-              <span className="font-semibold text-slate-900">{Number(ordering.quantity) + (Number(orderQty) || 0)} {ordering.unit}</span>
-            </p>
-            <div className="flex gap-2 pt-1">
-              <button type="submit" className="btn-primary flex-1" disabled={saving}>
-                {saving ? 'Recording…' : 'Confirm order'}
-              </button>
-              <button type="button" className="btn-ghost" onClick={() => setOrdering(null)}>Cancel</button>
-            </div>
-          </form>
-        )}
-      </SlidePanel>
     </SectionLayout>
   );
 }
 
-function Stat({ label, value, tone }) {
-  const tones = { slate: 'text-slate-900', red: 'text-rose-600', green: 'text-emerald-600' };
+function Stat({ label, value }) {
   return (
     <div className="card p-3.5">
       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${tones[tone]}`}>{value}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{value}</p>
     </div>
   );
 }

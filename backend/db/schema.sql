@@ -5,6 +5,24 @@
 
 create extension if not exists "pgcrypto";
 
+-- ---------- Users & sessions (login / roles) ----------
+-- role is 'admin' | 'coordinator' (see backend/auth/roles.js for what each can access)
+create table if not exists users (
+  id            uuid primary key default gen_random_uuid(),
+  username      text not null unique,
+  name          text,
+  role          text not null,
+  salt          text not null,
+  password_hash text not null,
+  created_at    timestamptz default now()
+);
+
+create table if not exists sessions (
+  token       text primary key,
+  user_id     uuid references users(id) on delete cascade,
+  created_at  timestamptz default now()
+);
+
 -- ---------- Classes ----------
 -- The list of class names (e.g. Nursery, First, Second). Students and teachers
 -- reference a class by its name.
@@ -29,7 +47,6 @@ create table if not exists students (
   total_fees           numeric default 0,   -- actual / total fees for the year
   paid_fees            numeric default 0,   -- how much has been paid so far
   -- "Fees left" is NOT stored; it is always computed as total_fees - paid_fees
-  photo                text,
   created_at           timestamptz default now()
 );
 
@@ -57,26 +74,63 @@ create table if not exists teachers (
   phone_2       text,
   join_date     date,
   adhar_number  text,
-  salary        numeric default 0,   -- base monthly salary
-  leave_days    integer default 0,   -- days on leave this month
-  days_in_month integer default 30,  -- divisor for per-day pay (28/29/30/31 or working days)
+  salary            numeric default 0,   -- base monthly salary
+  leave_days        integer default 0,   -- total leaves taken (kept in sync with the register)
+  chargeable_leaves integer default 0,   -- leaves beyond the 1-free-per-month allowance
   -- Net salary is NOT stored; it is computed as:
-  --   salary - round(salary / days_in_month * leave_days)
-  photo         text,
-  created_at    timestamptz default now()
+  --   salary - round(salary / 30 * chargeable_leaves)   (fixed 30-day month)
+  created_at        timestamptz default now()
 );
 
+-- ---------- School holidays (general, everyone off) ----------
+create table if not exists holidays (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  date        date not null,
+  created_at  timestamptz default now()
+);
+
+-- ---------- Teacher leave register ----------
+-- One row per leave a teacher takes. The backend keeps each teacher's
+-- leave_days + chargeable_leaves in sync with these rows.
+create table if not exists teacher_leaves (
+  id          uuid primary key default gen_random_uuid(),
+  teacher_id  uuid references teachers(id) on delete cascade,
+  date        date not null,
+  reason      text,
+  created_at  timestamptz default now()
+);
+
+create index if not exists idx_teacher_leaves_teacher on teacher_leaves(teacher_id);
+
+-- ---------- Payroll (saved monthly salary register) ----------
+-- A snapshot of each teacher's pay for a month, locked in when generated so it
+-- stays accurate even if salaries change later.
+create table if not exists payroll (
+  id           uuid primary key default gen_random_uuid(),
+  month        text not null,        -- 'YYYY-MM'
+  teacher_id   uuid,
+  name         text,
+  class        text,
+  salary       numeric,
+  leaves       integer,
+  chargeable   integer,
+  deduction    numeric,
+  net          numeric,
+  generated_at timestamptz default now()
+);
+
+create index if not exists idx_payroll_month on payroll(month);
+
 -- ---------- Inventory ----------
+-- Just counts (no ordering). Each item holds a "variants" array; a simple item
+-- has one variant with a blank label, an item with a sub-parameter (e.g. Size)
+-- has one variant per value: [{ "label": "8", "quantity": 10 }, ...].
 create table if not exists inventory (
-  id            uuid primary key default gen_random_uuid(),
-  item_name     text not null,
-  category      text,
-  quantity      integer default 0,
-  unit          text,
-  reorder_level integer default 0,
-  supplier      text,
-  last_ordered  date,
-  created_at    timestamptz default now()
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null,
+  variants   jsonb not null default '[]',    -- [{ "label": "Size 9", "quantity": 10 }, ...]
+  created_at timestamptz default now()
 );
 
 -- Note: The backend uses the SERVICE key and talks to these tables directly,

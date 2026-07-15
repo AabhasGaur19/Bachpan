@@ -2,28 +2,35 @@ import { useMemo, useState } from 'react';
 import SectionLayout from '../components/SectionLayout.jsx';
 import SlidePanel from '../components/SlidePanel.jsx';
 import ClassManager from '../components/ClassManager.jsx';
+import HolidayManager from '../components/HolidayManager.jsx';
+import TeacherLeaves from '../components/TeacherLeaves.jsx';
+import Payroll from '../components/Payroll.jsx';
 import Icon from '../components/Icon.jsx';
 import { Field, Avatar, EmptyState, Spinner, ErrorBanner, KV } from '../components/ui.jsx';
 import { useCollection } from '../lib/useCollection.js';
-import { money, perDay, payDays, leaveDeduction, netSalary, daysInMonth } from '../lib/format.js';
+import { money, perDay, chargeableLeaves, leaveDeduction, netSalary } from '../lib/format.js';
 
 const BLANK = {
   id: '', name: '', class: '', email: '', phone_1: '', phone_2: '',
   join_date: '', adhar_number: '', salary: 0, leave_days: 0,
-  days_in_month: daysInMonth(), photo: '',
 };
 
 const UNASSIGNED = '__unassigned__';
 
 export default function Teachers() {
-  const { items, error, saving, save, remove, setError } = useCollection('teachers');
+  const { items, error, saving, save, remove, reload, setError } = useCollection('teachers');
   const classesCol = useCollection('classes');
   const classes = classesCol.items || [];
+  const holidaysCol = useCollection('holidays');
+  const holidays = holidaysCol.items || [];
 
   const [search, setSearch] = useState('');
   const [selectedClass, setSelectedClass] = useState(null);
   const [editing, setEditing] = useState(null);
   const [showClasses, setShowClasses] = useState(false);
+  const [showHolidays, setShowHolidays] = useState(false);
+  const [showPayroll, setShowPayroll] = useState(false);
+  const [leavesFor, setLeavesFor] = useState(null);
 
   const searching = search.trim() !== '';
   const assignedNames = useMemo(() => new Set(classes.map((c) => c.name)), [classes]);
@@ -69,7 +76,6 @@ export default function Teachers() {
       ...editing,
       salary: Number(editing.salary) || 0,
       leave_days: Number(editing.leave_days) || 0,
-      days_in_month: Number(editing.days_in_month) || 30,
     };
     if (await save(payload)) setEditing(null);
   }
@@ -80,10 +86,7 @@ export default function Teachers() {
 
   function startAdd() {
     const cls = selectedClass && selectedClass !== UNASSIGNED ? selectedClass : '';
-    setEditing({ ...BLANK, class: cls, days_in_month: daysInMonth() });
-  }
-  function startEdit(t) {
-    setEditing({ ...t, days_in_month: t.days_in_month || daysInMonth() });
+    setEditing({ ...BLANK, class: cls });
   }
 
   async function addClass(name) {
@@ -97,11 +100,18 @@ export default function Teachers() {
     if (confirm(`Delete class "${c.name}"? (Existing teachers keep their label.)`)) await classesCol.remove(c.id);
   }
 
+  async function addHoliday(name, date) {
+    return Boolean(await holidaysCol.save({ id: '', name, date }));
+  }
+  async function deleteHoliday(h) {
+    if (confirm(`Delete holiday "${h.name}"?`)) await holidaysCol.remove(h.id);
+  }
+
   function TeacherCard({ t }) {
     return (
       <div className="card flex flex-col p-4">
         <div className="flex items-center gap-3">
-          <Avatar name={t.name} src={t.photo} />
+          <Avatar name={t.name} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-[15px] font-semibold text-slate-900">{t.name}</p>
             <p className="truncate text-[13px] text-slate-500">{t.email || '—'}</p>
@@ -112,7 +122,7 @@ export default function Teachers() {
           <KV label="Phone 1" value={t.phone_1} />
           <KV label="Phone 2" value={t.phone_2} />
           <KV label="Join date" value={t.join_date} />
-          <KV label="Leave days" value={String(t.leave_days || 0)} />
+          <KV label="Leaves (this mo.)" value={String(t.leave_days || 0)} />
         </dl>
         <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
           <div>
@@ -125,7 +135,10 @@ export default function Teachers() {
           </p>
         </div>
         <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
-          <button className="btn-secondary flex-1 py-2" onClick={() => startEdit(t)}>
+          <button className="btn-secondary flex-1 py-2" onClick={() => setLeavesFor(t)}>
+            <Icon name="calendar" size={15} /> Leaves
+          </button>
+          <button className="btn-secondary flex-1 py-2" onClick={() => setEditing(t)}>
             <Icon name="pencil" size={15} /> Edit
           </button>
           <button className="btn-danger px-3 py-2" onClick={() => handleDelete(t)} aria-label="Delete">
@@ -155,10 +168,15 @@ export default function Teachers() {
     if (selectedClass === null) {
       return (
         <>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Classes</h2>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <button className="btn-secondary h-9 px-3 text-[13px]" onClick={() => setShowPayroll(true)}>
+              <Icon name="file-text" size={16} /> Payroll
+            </button>
+            <button className="btn-secondary h-9 px-3 text-[13px]" onClick={() => setShowHolidays(true)}>
+              <Icon name="calendar" size={16} /> Holidays
+            </button>
             <button className="btn-secondary h-9 px-3 text-[13px]" onClick={() => setShowClasses(true)}>
-              <Icon name="layers" size={16} /> Manage classes
+              <Icon name="layers" size={16} /> Classes
             </button>
           </div>
           {classCards.length === 0 ? (
@@ -259,27 +277,21 @@ export default function Teachers() {
 
             <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4">
               <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Salary</p>
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="Salary (₹)">
-                  <input type="number" min="0" className="input" value={editing.salary}
-                    onChange={(e) => setEditing({ ...editing, salary: e.target.value })} />
-                </Field>
-                <Field label="Days / month">
-                  <input type="number" min="1" max="31" className="input" value={editing.days_in_month}
-                    onChange={(e) => setEditing({ ...editing, days_in_month: e.target.value })} />
-                </Field>
-                <Field label="Days on leave">
-                  <input type="number" min="0" className="input" value={editing.leave_days}
-                    onChange={(e) => setEditing({ ...editing, leave_days: e.target.value })} />
-                </Field>
-              </div>
+              <Field label="Monthly salary (₹)">
+                <input type="number" min="0" className="input" value={editing.salary}
+                  onChange={(e) => setEditing({ ...editing, salary: e.target.value })} />
+              </Field>
               <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-3 text-sm">
                 <div className="flex items-center justify-between text-slate-500">
-                  <span>Per-day pay (÷ {payDays(editing)} days)</span>
-                  <span className="font-medium text-slate-700">{money(perDay(editing.salary, payDays(editing)))}</span>
+                  <span>Leaves this month</span>
+                  <span className="font-medium text-slate-700">{editing.leave_days || 0}</span>
                 </div>
                 <div className="flex items-center justify-between text-slate-500">
-                  <span>Leave deduction ({editing.leave_days || 0} days)</span>
+                  <span>Chargeable (after 1 free / month)</span>
+                  <span className="font-medium text-slate-700">{chargeableLeaves(editing)}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-500">
+                  <span>Leave deduction (÷ 30-day month)</span>
                   <span className="text-rose-600">− {money(leaveDeduction(editing))}</span>
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-200 pt-1.5">
@@ -287,15 +299,17 @@ export default function Teachers() {
                   <span className="font-semibold text-emerald-600">{money(netSalary(editing))}</span>
                 </div>
               </div>
-              <p className="mt-2 text-xs text-slate-400">
-                Set “Days / month” to the actual days (28–31) or your working-days count.
-              </p>
+              {editing.id ? (
+                <button type="button" className="btn-secondary mt-3 w-full"
+                  onClick={() => { setLeavesFor(editing); setEditing(null); }}>
+                  <Icon name="calendar" size={16} /> Manage leaves
+                </button>
+              ) : (
+                <p className="mt-2 text-xs text-slate-400">
+                  Save the teacher first, then record leaves from the Leaves button.
+                </p>
+              )}
             </div>
-
-            <Field label="Photo URL (optional)">
-              <input className="input" value={editing.photo} placeholder="https://…"
-                onChange={(e) => setEditing({ ...editing, photo: e.target.value })} />
-            </Field>
 
             <div className="flex gap-2 pt-1">
               <button type="submit" className="btn-primary flex-1" disabled={saving}>
@@ -313,6 +327,21 @@ export default function Teachers() {
         classes={classes} onAdd={addClass} onDelete={deleteClass}
         busy={classesCol.saving} error={classesCol.error}
       />
+
+      <HolidayManager
+        open={showHolidays}
+        onClose={() => { setShowHolidays(false); holidaysCol.setError(''); }}
+        holidays={holidays} onAdd={addHoliday} onDelete={deleteHoliday}
+        busy={holidaysCol.saving} error={holidaysCol.error}
+      />
+
+      <TeacherLeaves
+        teacher={leavesFor}
+        onClose={() => setLeavesFor(null)}
+        onChanged={reload}
+      />
+
+      <Payroll open={showPayroll} onClose={() => setShowPayroll(false)} />
     </SectionLayout>
   );
 }

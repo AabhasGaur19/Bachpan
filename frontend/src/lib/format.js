@@ -17,26 +17,22 @@ export function feesLeft(student) {
   return Math.max(left, 0);
 }
 
-// Actual number of days in a given month (defaults to the current month).
-export function daysInMonth(date = new Date()) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+// Teachers: per-day pay is always based on a fixed 30-day month,
+// regardless of how many days the calendar month actually has.
+export function perDay(salary) {
+  return (Number(salary) || 0) / 30;
 }
 
-// How many days the salary is divided over. Uses the teacher's own
-// days_in_month if set (e.g. 28/29/30/31, or working days like 26),
-// otherwise falls back to 30.
-export function payDays(teacher) {
-  return Number(teacher?.days_in_month) || 30;
-}
-
-// Per-day pay = monthly salary / days in that month.
-export function perDay(salary, days = 30) {
-  const d = Number(days) || 30;
-  return (Number(salary) || 0) / d;
+// Deductible leaves = leaves beyond the 1-free-per-month allowance.
+// Falls back to total leave_days for older records without the field.
+export function chargeableLeaves(teacher) {
+  return teacher?.chargeable_leaves != null
+    ? Number(teacher.chargeable_leaves)
+    : (Number(teacher?.leave_days) || 0);
 }
 
 export function leaveDeduction(teacher) {
-  return Math.round(perDay(teacher.salary, payDays(teacher)) * (Number(teacher.leave_days) || 0));
+  return Math.round(perDay(teacher.salary) * chargeableLeaves(teacher));
 }
 
 export function netSalary(teacher) {

@@ -17,7 +17,7 @@ export default function StudentDetail({ student, onClose, onEdit, onFees, onDele
         <div className="space-y-6">
           {/* Header */}
           <div className="flex flex-col items-center text-center">
-            <Avatar name={s.name} src={s.photo} className="!h-20 !w-20 !text-2xl" />
+            <Avatar name={s.name} className="!h-20 !w-20 !text-2xl" />
             <h2 className="mt-3 text-xl font-semibold text-slate-900">{s.name}</h2>
             <p className="mt-0.5 text-sm text-slate-500">
               {s.class ? `Class ${s.class}${s.section ? ' · ' + s.section : ''}` : 'No class'}

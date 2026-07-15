@@ -13,7 +13,7 @@ import { money, feesLeft } from '../lib/format.js';
 const BLANK = {
   id: '', name: '', registration_number: '', class: '', section: '',
   dob: '', father_name: '', phone: '', address: '', adhar_number: '',
-  total_fees: 0, paid_fees: 0, initial_paid: '', photo: '',
+  total_fees: 0, paid_fees: 0, initial_paid: '',
 };
 
 const UNASSIGNED = '__unassigned__';
@@ -109,7 +109,7 @@ export default function Students() {
         onClick={() => setDetailFor(s)}
         className="card flex w-full items-center gap-3 p-3.5 text-left transition hover:border-slate-300 hover:shadow-pop active:scale-[0.99]"
       >
-        <Avatar name={s.name} src={s.photo} className="!h-11 !w-11" />
+        <Avatar name={s.name} className="!h-11 !w-11" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold text-slate-900">{s.name}</p>
           <p className="truncate text-[13px] text-slate-500">
@@ -297,11 +297,6 @@ export default function Students() {
                 <p className="mt-2 text-xs text-slate-400">Optional — records the first payment now.</p>
               )}
             </div>
-
-            <Field label="Photo URL (optional)">
-              <input className="input" value={editing.photo} placeholder="https://…"
-                onChange={(e) => setEditing({ ...editing, photo: e.target.value })} />
-            </Field>
 
             <div className="flex gap-2 pt-1">
               <button type="submit" className="btn-primary flex-1" disabled={saving}>

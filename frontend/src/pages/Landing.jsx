@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Icon from '../components/Icon.jsx';
 import { api } from '../lib/api.js';
+import { useAuth } from '../lib/auth.jsx';
 
 const CARDS = [
   {
@@ -11,7 +12,7 @@ const CARDS = [
   },
   {
     to: 'teachers', icon: 'book-open', title: 'Teachers',
-    desc: 'Staff records, classes & salary',
+    desc: 'Staff records, classes, leaves & payroll',
     accent: 'bg-violet-50 text-violet-600',
   },
   {
@@ -23,46 +24,64 @@ const CARDS = [
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { user, logout, can } = useAuth();
   const [counts, setCounts] = useState({});
   const [lowStock, setLowStock] = useState(0);
+
+  const cards = CARDS.filter((c) => can(c.to));
 
   useEffect(() => {
     (async () => {
       try {
-        const [students, teachers, inventory] = await Promise.all([
-          api.list('students'), api.list('teachers'), api.list('inventory'),
-        ]);
-        setCounts({ students: students.length, teachers: teachers.length, inventory: inventory.length });
-        setLowStock(inventory.filter((i) => i.quantity <= i.reorder_level).length);
-      } catch { /* backend may not be up yet */ }
+        const next = {};
+        if (can('students')) next.students = (await api.list('students')).length;
+        if (can('teachers')) next.teachers = (await api.list('teachers')).length;
+        if (can('inventory')) {
+          const inv = await api.list('inventory');
+          next.inventory = inv.length;
+          setLowStock(inv.filter((i) => i.quantity <= i.reorder_level).length);
+        }
+        setCounts(next);
+      } catch { /* ignore */ }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto flex min-h-screen max-w-2xl flex-col px-5 py-10 sm:py-16">
-        {/* Brand */}
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white">
-            <Icon name="building" size={18} />
-          </span>
-          <span className="text-sm font-semibold tracking-tight text-slate-900">Bachpan</span>
+      <div className="mx-auto flex min-h-screen max-w-2xl flex-col px-5 py-8 sm:py-12">
+        {/* Top bar */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900 text-white">
+              <Icon name="building" size={18} />
+            </span>
+            <span className="text-sm font-semibold tracking-tight text-slate-900">Bachpan</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-right">
+              <p className="text-sm font-medium leading-tight text-slate-800">{user?.name}</p>
+              <p className="text-[11px] capitalize leading-tight text-slate-400">{user?.role}</p>
+            </div>
+            <button className="icon-btn border border-slate-200" onClick={logout} title="Sign out" aria-label="Sign out">
+              <Icon name="log-out" size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Hero */}
-        <div className="mt-14 sm:mt-20">
-          <h1 className="text-[34px] font-semibold leading-[1.1] tracking-tight text-slate-900 sm:text-5xl">
-            School management,<br />
-            <span className="text-slate-400">made simple.</span>
+        <div className="mt-12 sm:mt-16">
+          <h1 className="text-[32px] font-semibold leading-[1.1] tracking-tight text-slate-900 sm:text-4xl">
+            Welcome back.
           </h1>
-          <p className="mt-4 max-w-md text-[15px] leading-relaxed text-slate-500">
-            Choose a section to get started. Everything you need to run the school, in one calm place.
+          <p className="mt-3 max-w-md text-[15px] leading-relaxed text-slate-500">
+            Choose a section to get started.
           </p>
         </div>
 
-        {/* Sections */}
-        <div className="mt-10 flex flex-col gap-3">
-          {CARDS.map((c) => (
+        {/* Sections (only those this role can access) */}
+        <div className="mt-8 flex flex-col gap-3">
+          {cards.map((c) => (
             <button
               key={c.to}
               onClick={() => navigate(`/${c.to}`)}
@@ -74,16 +93,12 @@ export default function Landing() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h2 className="text-[15px] font-semibold text-slate-900">{c.title}</h2>
-                  {c.to === 'inventory' && lowStock > 0 && (
-                    <span className="badge-amber">{lowStock} low</span>
-                  )}
+                  {c.to === 'inventory' && lowStock > 0 && <span className="badge-amber">{lowStock} low</span>}
                 </div>
                 <p className="mt-0.5 truncate text-sm text-slate-500">{c.desc}</p>
               </div>
               <div className="flex shrink-0 items-center gap-3">
-                <span className="text-lg font-semibold tabular-nums text-slate-900">
-                  {counts[c.to] ?? '—'}
-                </span>
+                <span className="text-lg font-semibold tabular-nums text-slate-900">{counts[c.to] ?? '—'}</span>
                 <span className="text-slate-300 transition-transform group-hover:translate-x-0.5">
                   <Icon name="chevron-right" size={20} />
                 </span>
@@ -93,7 +108,7 @@ export default function Landing() {
         </div>
 
         <p className="mt-auto pt-12 text-xs text-slate-400">
-          Data is stored locally until Supabase is connected.
+          Signed in as {user?.username}. Data is stored locally until Supabase is connected.
         </p>
       </div>
     </div>

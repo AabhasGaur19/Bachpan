@@ -4,15 +4,64 @@ import cors from 'cors';
 import {
   list, create, update, remove, usingSupabase,
   listPayments, addPayment, deletePayment,
+  listLeaves, addLeave, deleteLeave, listTeachers,
+  payrollPreview, getPayroll, generatePayroll, payrollMonths,
+  authenticate, createSession, getSessionUser, deleteSession,
 } from './db/store.js';
+import { featuresForRole } from './auth/roles.js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Health / status
+// Attach the logged-in user (if a valid token is sent) to every request.
+app.use(async (req, _res, next) => {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (token) {
+    try { req.user = await getSessionUser(token); } catch { /* ignore */ }
+    req.token = token;
+  }
+  next();
+});
+
+// Guards
+function requireAuth(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Please log in' });
+  next();
+}
+function requireFeature(feature) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Please log in' });
+    if (!featuresForRole(req.user.role).includes(feature)) {
+      return res.status(403).json({ error: 'You do not have access to this section' });
+    }
+    next();
+  };
+}
+
+// Health / status (public)
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, storage: usingSupabase ? 'supabase' : 'local file (db/data.json)' });
+});
+
+// ---- Auth (public login; logout/me require a token) ----
+app.post('/api/auth/login', async (req, res, next) => {
+  try {
+    const { username, password } = req.body;
+    const user = await authenticate(username, password);
+    if (!user) return res.status(401).json({ error: 'Invalid username or password' });
+    const token = await createSession(user.id);
+    res.json({ token, user: { ...user, features: featuresForRole(user.role) } });
+  } catch (e) { next(e); }
+});
+
+app.post('/api/auth/logout', requireAuth, async (req, res, next) => {
+  try { await deleteSession(req.token); res.status(204).end(); } catch (e) { next(e); }
+});
+
+app.get('/api/auth/me', requireAuth, (req, res) => {
+  res.json({ ...req.user, features: featuresForRole(req.user.role) });
 });
 
 // Generic CRUD factory so Students / Teachers / Inventory share the same logic.
@@ -50,19 +99,26 @@ function crudRoutes(table) {
   return router;
 }
 
-app.use('/api/students', crudRoutes('students'));
-app.use('/api/teachers', crudRoutes('teachers'));
-app.use('/api/inventory', crudRoutes('inventory'));
-app.use('/api/classes', crudRoutes('classes'));
+app.use('/api/students', requireFeature('students'), crudRoutes('students'));
+// Teachers GET is enriched with current-month leave stats (must be before the
+// generic router so it handles the list request).
+app.get('/api/teachers', requireFeature('teachers'), async (_req, res, next) => {
+  try { res.json(await listTeachers()); } catch (e) { next(e); }
+});
+app.use('/api/teachers', requireFeature('teachers'), crudRoutes('teachers'));
+app.use('/api/inventory', requireFeature('inventory'), crudRoutes('inventory'));
+// Classes are shared (students & teachers both use them) -> any logged-in user.
+app.use('/api/classes', requireAuth, crudRoutes('classes'));
+app.use('/api/holidays', requireFeature('teachers'), crudRoutes('holidays'));
 
 // ---- Fee payments (installment history) for a student ----
-app.get('/api/students/:id/payments', async (req, res, next) => {
+app.get('/api/students/:id/payments', requireFeature('students'), async (req, res, next) => {
   try {
     res.json(await listPayments(req.params.id));
   } catch (e) { next(e); }
 });
 
-app.post('/api/students/:id/payments', async (req, res, next) => {
+app.post('/api/students/:id/payments', requireFeature('students'), async (req, res, next) => {
   try {
     const { amount } = req.body;
     if (!amount || Number(amount) <= 0) {
@@ -72,10 +128,59 @@ app.post('/api/students/:id/payments', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.delete('/api/students/:id/payments/:paymentId', async (req, res, next) => {
+app.delete('/api/students/:id/payments/:paymentId', requireFeature('students'), async (req, res, next) => {
   try {
     const ok = await deletePayment(req.params.id, req.params.paymentId);
     if (!ok) return res.status(404).json({ error: 'Payment not found' });
+    res.status(204).end();
+  } catch (e) { next(e); }
+});
+
+// ---- Payroll (monthly salary register) ----
+// NOTE: /months must be declared before /:month so it isn't treated as a month.
+app.get('/api/payroll/months', requireFeature('teachers'), async (_req, res, next) => {
+  try {
+    res.json(await payrollMonths());
+  } catch (e) { next(e); }
+});
+
+app.get('/api/payroll/:month', requireFeature('teachers'), async (req, res, next) => {
+  try {
+    const { month } = req.params;
+    const saved = await getPayroll(month);
+    if (saved.length) {
+      return res.json({ month, saved: true, generated_at: saved[0].generated_at, rows: saved });
+    }
+    res.json({ month, saved: false, rows: await payrollPreview(month) });
+  } catch (e) { next(e); }
+});
+
+app.post('/api/payroll/:month', requireFeature('teachers'), async (req, res, next) => {
+  try {
+    const { month } = req.params;
+    const rows = await generatePayroll(month);
+    res.status(201).json({ month, saved: true, generated_at: rows[0]?.generated_at, rows });
+  } catch (e) { next(e); }
+});
+
+// ---- Leave register for a teacher ----
+app.get('/api/teachers/:id/leaves', requireFeature('teachers'), async (req, res, next) => {
+  try {
+    res.json(await listLeaves(req.params.id));
+  } catch (e) { next(e); }
+});
+
+app.post('/api/teachers/:id/leaves', requireFeature('teachers'), async (req, res, next) => {
+  try {
+    if (!req.body.date) return res.status(400).json({ error: 'A date is required' });
+    res.status(201).json(await addLeave(req.params.id, req.body));
+  } catch (e) { next(e); }
+});
+
+app.delete('/api/teachers/:id/leaves/:leaveId', requireFeature('teachers'), async (req, res, next) => {
+  try {
+    const ok = await deleteLeave(req.params.id, req.params.leaveId);
+    if (!ok) return res.status(404).json({ error: 'Leave not found' });
     res.status(204).end();
   } catch (e) { next(e); }
 });
