@@ -117,7 +117,7 @@ create table if not exists payroll (
   class        text,
   salary       numeric,
   leaves       integer,
-  chargeable   integer,
+  chargeable   numeric,      -- fractional (half-days count as 0.5)
   deduction    numeric,
   net          numeric,
   generated_at timestamptz default now()
