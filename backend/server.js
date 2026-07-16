@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import {
   list, create, update, remove, usingSupabase,
-  listPayments, addPayment, deletePayment, paymentsSummary,
+  listPayments, addPayment, deletePayment, paymentsSummary, paymentsByMonth,
   listLeaves, addLeave, addLeaveRange, deleteLeave, listTeachers,
   payrollPreview, getPayroll, generatePayroll, payrollMonths,
   authenticate, createSession, getSessionUser, deleteSession, ensureDefaultUsers,
@@ -139,6 +139,12 @@ app.use('/api/holidays', requireFeature('teachers'), crudRoutes('holidays'));
 app.get('/api/payments/summary', requireFeature('fees'), async (_req, res, next) => {
   try {
     res.json(await paymentsSummary());
+  } catch (e) { next(e); }
+});
+
+app.get('/api/payments/summary/:month', requireFeature('fees'), async (req, res, next) => {
+  try {
+    res.json(await paymentsByMonth(req.params.month));
   } catch (e) { next(e); }
 });
 

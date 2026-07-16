@@ -51,6 +51,7 @@ export const api = {
   removePayment: (studentId, paymentId) =>
     request(`/api/students/${studentId}/payments/${paymentId}`, { method: 'DELETE' }),
   feesSummary: () => request('/api/payments/summary'),
+  paymentsByMonth: (month) => request(`/api/payments/summary/${month}`),
 
   // Leave register for a teacher
   listLeaves: (teacherId) => request(`/api/teachers/${teacherId}/leaves`),

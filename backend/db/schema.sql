@@ -59,6 +59,7 @@ create table if not exists fee_payments (
   amount      numeric not null,
   note        text,
   method      text default 'cash',   -- 'cash' or 'online'
+  category    text default 'fee',    -- 'fee' (tuition) or 'admission' (₹300 form fee)
   paid_on     date default current_date,
   created_at  timestamptz default now()
 );

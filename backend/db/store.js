@@ -233,13 +233,14 @@ export async function listPayments(studentId) {
   return data;
 }
 
-export async function addPayment(studentId, { amount, note, paid_on, method }) {
+export async function addPayment(studentId, { amount, note, paid_on, method, category }) {
   const row = {
     student_id: studentId,
     amount: Number(amount) || 0,
     note: note || '',
     paid_on: paid_on || new Date().toISOString().slice(0, 10),
     method: method === 'online' ? 'online' : 'cash',
+    category: category === 'admission' ? 'admission' : 'fee',
   };
   let created;
   if (!usingSupabase) {
@@ -266,7 +267,11 @@ export async function deletePayment(studentId, paymentId) {
 
 async function syncPaidFees(studentId) {
   const payments = await listPayments(studentId);
-  const paid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  // Only tuition ('fee') payments count toward paid_fees — admission form fees
+  // are a separate one-time charge and don't reduce the tuition balance.
+  const paid = payments
+    .filter((p) => p.category !== 'admission')
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   await update('students', studentId, { paid_fees: paid });
 }
 
@@ -291,6 +296,34 @@ export async function paymentsSummary() {
     m.count += 1;
   }
   return [...byMonth.values()].sort((a, b) => b.month.localeCompare(a.month));
+}
+
+// Individual payments in a given month, with the student's name attached.
+export async function paymentsByMonth(month) {
+  let all, students;
+  if (!usingSupabase) {
+    all = mem.fee_payments || [];
+    students = mem.students || [];
+  } else {
+    const p = await supabase.from('fee_payments').select('*');
+    if (p.error) throw p.error;
+    const s = await supabase.from('students').select('id, name');
+    if (s.error) throw s.error;
+    all = p.data; students = s.data;
+  }
+  const nameById = new Map(students.map((s) => [String(s.id), s.name]));
+  return all
+    .filter((p) => String(p.paid_on).slice(0, 7) === month)
+    .map((p) => ({
+      id: p.id,
+      student_name: nameById.get(String(p.student_id)) || '—',
+      amount: Number(p.amount) || 0,
+      method: p.method === 'online' ? 'online' : 'cash',
+      category: p.category === 'admission' ? 'admission' : 'fee',
+      paid_on: p.paid_on,
+      note: p.note || '',
+    }))
+    .sort((a, b) => String(a.paid_on).localeCompare(String(b.paid_on)) || a.student_name.localeCompare(b.student_name));
 }
 
 // ---------- Teacher leaves (register) ----------
