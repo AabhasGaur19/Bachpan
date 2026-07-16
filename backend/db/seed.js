@@ -4,6 +4,7 @@
 // Default login accounts. Passwords are plaintext here only for seeding; the
 // store hashes them before saving. Change these (or add users) as needed.
 export const sampleUsers = [
+  { id: 'user-dev', username: 'developer', name: 'Developer', role: 'developer', password: 'dev@2026' },
   { id: 'user-admin', username: 'admin', name: 'School Admin', role: 'admin', password: 'admin@123' },
   { id: 'user-coord', username: 'coordinator', name: 'Coordinator', role: 'coordinator', password: 'coord@123' },
 ];

@@ -72,4 +72,10 @@ export const api = {
     request('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   me: () => request('/api/auth/me'),
+
+  // User management (developer)
+  listUsers: () => request('/api/users'),
+  createUser: (data) => request('/api/users', { method: 'POST', body: JSON.stringify(data) }),
+  deleteUser: (id) => request(`/api/users/${id}`, { method: 'DELETE' }),
+  roles: () => request('/api/roles'),
 };

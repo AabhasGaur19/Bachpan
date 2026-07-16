@@ -13,11 +13,13 @@
 
 // Every gate-able feature in the app.
 //  - students / teachers / inventory : the three main sections
-//  - fees : seeing & recording student fees (a sub-feature of students)
-export const FEATURES = ['students', 'teachers', 'inventory', 'fees'];
+//  - fees  : seeing & recording student fees (a sub-feature of students)
+//  - users : creating login accounts & assigning roles (developer only)
+export const FEATURES = ['students', 'teachers', 'inventory', 'fees', 'users'];
 
 // Which features each role can access.
 export const ROLE_FEATURES = {
+  developer: ['users'], // manages accounts only
   admin: ['students', 'teachers', 'inventory', 'fees'],
   coordinator: ['students', 'inventory'], // students but NOT their fees
 };

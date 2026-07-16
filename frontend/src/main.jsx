@@ -8,6 +8,7 @@ import Students from './pages/Students.jsx';
 import Teachers from './pages/Teachers.jsx';
 import Inventory from './pages/Inventory.jsx';
 import Login from './pages/Login.jsx';
+import UserManager from './pages/UserManager.jsx';
 import BootGate from './components/BootGate.jsx';
 import { AuthProvider, useAuth } from './lib/auth.jsx';
 
@@ -36,6 +37,7 @@ const router = createBrowserRouter([
       { path: 'students', element: <RequireFeature feature="students"><Students /></RequireFeature> },
       { path: 'teachers', element: <RequireFeature feature="teachers"><Teachers /></RequireFeature> },
       { path: 'inventory', element: <RequireFeature feature="inventory"><Inventory /></RequireFeature> },
+      { path: 'users', element: <RequireFeature feature="users"><UserManager /></RequireFeature> },
     ],
   },
 ]);

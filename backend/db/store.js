@@ -574,20 +574,60 @@ export async function deleteSession(token) {
   }
 }
 
-// On Supabase: if the users table is empty, seed the default login accounts
-// (admin / coordinator) so you can log in right after connecting. No-op locally
-// (those users are already in the seed) and no-op if any users already exist.
+// ---------- User management (developer only) ----------
+const stripSecret = ({ salt, password_hash, ...u }) => u;
+
+export async function listUsers() {
+  if (!usingSupabase) {
+    return (mem.users || []).map(stripSecret).sort((a, b) => String(a.username).localeCompare(String(b.username)));
+  }
+  const { data, error } = await supabase.from('users').select('id, username, name, role, created_at').order('username');
+  if (error) throw error;
+  return data;
+}
+
+export async function createUser({ username, name, role, password }) {
+  const uname = String(username || '').trim();
+  if (!uname) throw new Error('Username is required');
+  if (!password) throw new Error('Password is required');
+  if (!role) throw new Error('Role is required');
+  if (await findUserByUsername(uname)) throw new Error('That username already exists');
+
+  const { salt, hash } = hashPassword(password);
+  const row = { username: uname, name: name || '', role, salt, password_hash: hash };
+  let created;
+  if (!usingSupabase) {
+    created = memCreate('users', row);
+  } else {
+    const { data, error } = await supabase.from('users').insert(row).select().single();
+    if (error) throw error;
+    created = data;
+  }
+  return stripSecret(created);
+}
+
+export async function deleteUser(id) {
+  if (!usingSupabase) {
+    mem.sessions = (mem.sessions || []).filter((s) => String(s.user_id) !== String(id));
+    return memRemove('users', id);
+  }
+  await supabase.from('sessions').delete().eq('user_id', id); // (also cascades)
+  const { error } = await supabase.from('users').delete().eq('id', id);
+  if (error) throw error;
+  return true;
+}
+
+// On Supabase: make sure each default login account exists (adds any that are
+// missing, e.g. the developer account on an already-populated database).
+// No-op locally (those users are already in the seed).
 export async function ensureDefaultUsers() {
   if (!usingSupabase) return;
-  const { count, error } = await supabase.from('users').select('id', { count: 'exact', head: true });
-  if (error) throw error;
-  if ((count || 0) > 0) return;
-  const rows = sampleUsers.map((u) => {
+  for (const u of sampleUsers) {
+    if (await findUserByUsername(u.username)) continue;
     const { id, password, ...rest } = u; // let Supabase generate the uuid id
     const { salt, hash } = hashPassword(password);
-    return { ...rest, salt, password_hash: hash };
-  });
-  const { error: insErr } = await supabase.from('users').insert(rows);
-  if (insErr) throw insErr;
-  console.log('Seeded default login users into Supabase: admin, coordinator');
+    const { error } = await supabase.from('users').insert({ ...rest, salt, password_hash: hash });
+    if (error) throw error;
+    console.log('Seeded default login user into Supabase:', u.username);
+  }
 }

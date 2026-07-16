@@ -20,6 +20,11 @@ const CARDS = [
     desc: 'Stock levels, suppliers & reordering',
     accent: 'bg-amber-50 text-amber-600',
   },
+  {
+    to: 'users', icon: 'users', title: 'Users',
+    desc: 'Create accounts & assign roles',
+    accent: 'bg-slate-100 text-slate-600',
+  },
 ];
 
 export default function Landing() {

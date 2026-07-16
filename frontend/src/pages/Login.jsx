@@ -4,24 +4,36 @@ import Icon from '../components/Icon.jsx';
 import { Loader } from '../components/BootGate.jsx';
 import { useAuth } from '../lib/auth.jsx';
 
-// How long to show the welcome loader after a successful login.
 const WELCOME_MS = 2600;
 
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [devMode, setDevMode] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [entering, setEntering] = useState(false);
 
+  function toggleDev(on) {
+    setDevMode(on);
+    setError('');
+    setUsername(on ? 'developer' : '');
+    setPassword('');
+  }
+
   async function submit(e) {
     e.preventDefault();
     setBusy(true); setError('');
     try {
-      await login(username.trim(), password);
-      setEntering(true); // show the fun loader briefly, then go in
+      const u = await login(username.trim(), password);
+      // Developer goes straight to account management; everyone else to home.
+      if (u?.features?.includes('users')) {
+        navigate('/users', { replace: true });
+        return;
+      }
+      setEntering(true);
       setTimeout(() => navigate('/', { replace: true }), WELCOME_MS);
     } catch (err) {
       setError(err.message || 'Could not sign in');
@@ -29,18 +41,21 @@ export default function Login() {
     }
   }
 
-  // After a successful login, show the students-activities loader for a moment.
   if (entering) return <Loader />;
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center px-5 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-white">
-            <Icon name="building" size={24} />
+          <span className={`flex h-12 w-12 items-center justify-center rounded-2xl text-white ${devMode ? 'bg-slate-600' : 'bg-slate-900'}`}>
+            <Icon name={devMode ? 'users' : 'building'} size={24} />
           </span>
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">Bachpan</h1>
-          <p className="mt-1 text-sm text-slate-500">Sign in to continue</p>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
+            {devMode ? 'Developer access' : 'Bachpan'}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {devMode ? 'Sign in to manage user accounts' : 'Sign in to continue'}
+          </p>
         </div>
 
         <form onSubmit={submit} className="card space-y-4 p-6">
@@ -67,6 +82,18 @@ export default function Login() {
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+
+        <div className="mt-4 text-center">
+          {devMode ? (
+            <button type="button" className="text-xs font-medium text-slate-400 hover:text-slate-600" onClick={() => toggleDev(false)}>
+              ← Back to normal sign-in
+            </button>
+          ) : (
+            <button type="button" className="text-xs font-medium text-slate-400 hover:text-slate-600" onClick={() => toggleDev(true)}>
+              Developer access
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

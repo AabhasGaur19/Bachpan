@@ -7,8 +7,9 @@ import {
   listLeaves, addLeave, addLeaveRange, deleteLeave, listTeachers,
   payrollPreview, getPayroll, generatePayroll, payrollMonths,
   authenticate, createSession, getSessionUser, deleteSession, ensureDefaultUsers,
+  listUsers, createUser, deleteUser,
 } from './db/store.js';
-import { featuresForRole } from './auth/roles.js';
+import { featuresForRole, ROLE_FEATURES } from './auth/roles.js';
 
 const app = express();
 app.use(cors());
@@ -78,6 +79,34 @@ app.post('/api/auth/logout', requireAuth, async (req, res, next) => {
 
 app.get('/api/auth/me', requireAuth, (req, res) => {
   res.json({ ...req.user, features: featuresForRole(req.user.role) });
+});
+
+// ---- User management (developer only) ----
+app.get('/api/roles', requireFeature('users'), (_req, res) => {
+  res.json(Object.entries(ROLE_FEATURES).map(([role, features]) => ({ role, features })));
+});
+
+app.get('/api/users', requireFeature('users'), async (_req, res, next) => {
+  try { res.json(await listUsers()); } catch (e) { next(e); }
+});
+
+app.post('/api/users', requireFeature('users'), async (req, res, next) => {
+  try {
+    res.status(201).json(await createUser(req.body));
+  } catch (e) {
+    res.status(400).json({ error: e.message }); // validation errors (dupe username, etc.)
+  }
+});
+
+app.delete('/api/users/:id', requireFeature('users'), async (req, res, next) => {
+  try {
+    if (String(req.params.id) === String(req.user.id)) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+    const ok = await deleteUser(req.params.id);
+    if (!ok) return res.status(404).json({ error: 'User not found' });
+    res.status(204).end();
+  } catch (e) { next(e); }
 });
 
 // Generic CRUD factory so Students / Teachers / Inventory share the same logic.
