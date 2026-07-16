@@ -1,5 +1,23 @@
 import Icon from './Icon.jsx';
 
+// Small segmented control (pill toggle).
+export function Segmented({ options, value, onChange }) {
+  return (
+    <div className="flex rounded-lg bg-slate-100 p-0.5">
+      {options.map((o) => (
+        <button
+          key={o.value} type="button" onClick={() => onChange(o.value)}
+          className={`flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition ${
+            value === o.value ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Field({ label, children }) {
   return (
     <label className="block">

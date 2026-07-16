@@ -50,6 +50,7 @@ export const api = {
     request(`/api/students/${studentId}/payments`, { method: 'POST', body: JSON.stringify(data) }),
   removePayment: (studentId, paymentId) =>
     request(`/api/students/${studentId}/payments/${paymentId}`, { method: 'DELETE' }),
+  feesSummary: () => request('/api/payments/summary'),
 
   // Leave register for a teacher
   listLeaves: (teacherId) => request(`/api/teachers/${teacherId}/leaves`),

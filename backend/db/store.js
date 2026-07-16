@@ -233,12 +233,13 @@ export async function listPayments(studentId) {
   return data;
 }
 
-export async function addPayment(studentId, { amount, note, paid_on }) {
+export async function addPayment(studentId, { amount, note, paid_on, method }) {
   const row = {
     student_id: studentId,
     amount: Number(amount) || 0,
     note: note || '',
     paid_on: paid_on || new Date().toISOString().slice(0, 10),
+    method: method === 'online' ? 'online' : 'cash',
   };
   let created;
   if (!usingSupabase) {
@@ -267,6 +268,29 @@ async function syncPaidFees(studentId) {
   const payments = await listPayments(studentId);
   const paid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
   await update('students', studentId, { paid_fees: paid });
+}
+
+// Month-wise fee collection summary across ALL students, split by method.
+export async function paymentsSummary() {
+  let all;
+  if (!usingSupabase) {
+    all = mem.fee_payments || [];
+  } else {
+    const { data, error } = await supabase.from('fee_payments').select('*');
+    if (error) throw error;
+    all = data;
+  }
+  const byMonth = new Map();
+  for (const p of all) {
+    const ym = String(p.paid_on).slice(0, 7);
+    if (!byMonth.has(ym)) byMonth.set(ym, { month: ym, total: 0, online: 0, cash: 0, count: 0 });
+    const m = byMonth.get(ym);
+    const amt = Number(p.amount) || 0;
+    m.total += amt;
+    if (p.method === 'online') m.online += amt; else m.cash += amt;
+    m.count += 1;
+  }
+  return [...byMonth.values()].sort((a, b) => b.month.localeCompare(a.month));
 }
 
 // ---------- Teacher leaves (register) ----------

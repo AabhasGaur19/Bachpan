@@ -4,6 +4,7 @@ import SlidePanel from '../components/SlidePanel.jsx';
 import StudentFees from '../components/StudentFees.jsx';
 import StudentDetail from '../components/StudentDetail.jsx';
 import ClassManager from '../components/ClassManager.jsx';
+import FeesSummary from '../components/FeesSummary.jsx';
 import Icon from '../components/Icon.jsx';
 import { Field, Avatar, EmptyState, CardsSkeleton, ErrorBanner } from '../components/ui.jsx';
 import { useCollection } from '../lib/useCollection.js';
@@ -32,6 +33,7 @@ export default function Students() {
   const [feesFor, setFeesFor] = useState(null);
   const [detailFor, setDetailFor] = useState(null);
   const [showClasses, setShowClasses] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
 
   const searching = search.trim() !== '';
   const assignedNames = useMemo(() => new Set(classes.map((c) => c.name)), [classes]);
@@ -149,11 +151,18 @@ export default function Students() {
     if (selectedClass === null) {
       return (
         <>
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Classes</h2>
-            <button className="btn-secondary h-9 px-3 text-[13px]" onClick={() => setShowClasses(true)}>
-              <Icon name="layers" size={16} /> Manage classes
-            </button>
+            <div className="flex gap-2">
+              {canFees && (
+                <button className="btn-secondary h-9 px-3 text-[13px]" onClick={() => setShowSummary(true)}>
+                  <Icon name="wallet" size={16} /> Fees summary
+                </button>
+              )}
+              <button className="btn-secondary h-9 px-3 text-[13px]" onClick={() => setShowClasses(true)}>
+                <Icon name="layers" size={16} /> Manage classes
+              </button>
+            </div>
           </div>
           {classCards.length === 0 ? (
             <EmptyState icon="building" message="No classes yet. Add one from “Manage classes” to get started." />
@@ -334,6 +343,8 @@ export default function Students() {
         classes={classes} onAdd={addClass} onDelete={deleteClass}
         busy={classesCol.saving} error={classesCol.error}
       />
+
+      <FeesSummary open={showSummary} onClose={() => setShowSummary(false)} />
     </SectionLayout>
   );
 }

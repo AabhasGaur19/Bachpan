@@ -58,6 +58,7 @@ create table if not exists fee_payments (
   student_id  uuid references students(id) on delete cascade,
   amount      numeric not null,
   note        text,
+  method      text default 'cash',   -- 'cash' or 'online'
   paid_on     date default current_date,
   created_at  timestamptz default now()
 );

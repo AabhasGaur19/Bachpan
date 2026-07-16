@@ -1,16 +1,18 @@
 import { useEffect, useState } from 'react';
 import SlidePanel from './SlidePanel.jsx';
 import Icon from './Icon.jsx';
-import { Field, RowsSkeleton, ErrorBanner } from './ui.jsx';
+import { Field, Segmented, RowsSkeleton, ErrorBanner } from './ui.jsx';
 import { money } from '../lib/format.js';
 import { api } from '../lib/api.js';
+
+const blankForm = () => ({ amount: '', paid_on: new Date().toISOString().slice(0, 10), note: '', method: 'cash' });
 
 // Fee history + add/remove payments for one student.
 export default function StudentFees({ student, onClose, onChanged }) {
   const [payments, setPayments] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({ amount: '', paid_on: new Date().toISOString().slice(0, 10), note: '' });
+  const [form, setForm] = useState(blankForm);
 
   const open = !!student;
 
@@ -23,7 +25,7 @@ export default function StudentFees({ student, onClose, onChanged }) {
 
   useEffect(() => {
     setPayments(null);
-    setForm({ amount: '', paid_on: new Date().toISOString().slice(0, 10), note: '' });
+    setForm(blankForm());
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [student?.id]);
@@ -40,7 +42,7 @@ export default function StudentFees({ student, onClose, onChanged }) {
     setBusy(true); setError('');
     try {
       await api.addPayment(student.id, form);
-      setForm({ amount: '', paid_on: new Date().toISOString().slice(0, 10), note: '' });
+      setForm(blankForm());
       await load(); onChanged?.();
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   }
@@ -96,8 +98,15 @@ export default function StudentFees({ student, onClose, onChanged }) {
               </Field>
             </div>
             <div className="mt-3">
+              <span className="label">Payment method</span>
+              <Segmented
+                options={[{ label: 'Cash', value: 'cash' }, { label: 'Online', value: 'online' }]}
+                value={form.method} onChange={(v) => setForm({ ...form, method: v })}
+              />
+            </div>
+            <div className="mt-3">
               <Field label="Note (optional)">
-                <input className="input" value={form.note} placeholder="Term 1, cash, cheque #…"
+                <input className="input" value={form.note} placeholder="Term 1, cheque #…"
                   onChange={(e) => setForm({ ...form, note: e.target.value })} />
               </Field>
             </div>
@@ -123,7 +132,12 @@ export default function StudentFees({ student, onClose, onChanged }) {
                       {idx + 1}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-slate-900">{money(p.amount)}</p>
+                      <p className="flex items-center gap-2 font-semibold text-slate-900">
+                        {money(p.amount)}
+                        {p.method === 'online'
+                          ? <span className="badge-brand">Online</span>
+                          : <span className="badge-slate">Cash</span>}
+                      </p>
                       <p className="truncate text-xs text-slate-500">{p.paid_on}{p.note ? ` · ${p.note}` : ''}</p>
                     </div>
                     <button className="icon-btn text-rose-500 hover:bg-rose-50" onClick={() => handleRemove(p)} aria-label="Remove">

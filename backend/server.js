@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import {
   list, create, update, remove, usingSupabase,
-  listPayments, addPayment, deletePayment,
+  listPayments, addPayment, deletePayment, paymentsSummary,
   listLeaves, addLeave, addLeaveRange, deleteLeave, listTeachers,
   payrollPreview, getPayroll, generatePayroll, payrollMonths,
   authenticate, createSession, getSessionUser, deleteSession, ensureDefaultUsers,
@@ -134,6 +134,13 @@ app.use('/api/inventory', requireFeature('inventory'), crudRoutes('inventory'));
 // Classes are shared (students & teachers both use them) -> any logged-in user.
 app.use('/api/classes', requireAuth, crudRoutes('classes'));
 app.use('/api/holidays', requireFeature('teachers'), crudRoutes('holidays'));
+
+// ---- Fees: month-wise collection summary (all students) ----
+app.get('/api/payments/summary', requireFeature('fees'), async (_req, res, next) => {
+  try {
+    res.json(await paymentsSummary());
+  } catch (e) { next(e); }
+});
 
 // ---- Fee payments (installment history) for a student ----
 app.get('/api/students/:id/payments', requireFeature('fees'), async (req, res, next) => {

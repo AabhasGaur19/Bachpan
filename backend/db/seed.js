@@ -61,13 +61,13 @@ export const samplePayroll = [
 ];
 
 export const samplePayments = [
-  { id: 'p1', student_id: 's1', amount: 15000, note: 'Term 1', paid_on: '2026-04-05' },
-  { id: 'p2', student_id: 's1', amount: 15000, note: 'Term 2', paid_on: '2026-06-10' },
-  { id: 'p3', student_id: 's2', amount: 45000, note: 'Full year (one-time)', paid_on: '2026-04-02' },
-  { id: 'p4', student_id: 's3', amount: 12000, note: 'Term 1', paid_on: '2026-04-08' },
-  { id: 'p5', student_id: 's4', amount: 24000, note: 'Term 1', paid_on: '2026-04-03' },
-  { id: 'p6', student_id: 's4', amount: 24000, note: 'Term 2', paid_on: '2026-07-01' },
-  { id: 'p7', student_id: 's5', amount: 20000, note: 'Term 1', paid_on: '2026-04-06' },
+  { id: 'p1', student_id: 's1', amount: 15000, note: 'Term 1', paid_on: '2026-04-05', method: 'online' },
+  { id: 'p2', student_id: 's1', amount: 15000, note: 'Term 2', paid_on: '2026-06-10', method: 'cash' },
+  { id: 'p3', student_id: 's2', amount: 45000, note: 'Full year (one-time)', paid_on: '2026-04-02', method: 'online' },
+  { id: 'p4', student_id: 's3', amount: 12000, note: 'Term 1', paid_on: '2026-04-08', method: 'cash' },
+  { id: 'p5', student_id: 's4', amount: 24000, note: 'Term 1', paid_on: '2026-04-03', method: 'online' },
+  { id: 'p6', student_id: 's4', amount: 24000, note: 'Term 2', paid_on: '2026-07-01', method: 'cash' },
+  { id: 'p7', student_id: 's5', amount: 20000, note: 'Term 1', paid_on: '2026-04-06', method: 'online' },
 ];
 
 // An item has a name and a list of "variants" — each a free-text label you name
