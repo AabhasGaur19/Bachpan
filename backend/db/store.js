@@ -581,7 +581,7 @@ export async function listUsers() {
   if (!usingSupabase) {
     return (mem.users || []).map(stripSecret).sort((a, b) => String(a.username).localeCompare(String(b.username)));
   }
-  const { data, error } = await supabase.from('users').select('id, username, name, role, created_at').order('username');
+  const { data, error } = await supabase.from('users').select('id, username, name, role, is_active, created_at').order('username');
   if (error) throw error;
   return data;
 }
@@ -594,7 +594,7 @@ export async function createUser({ username, name, role, password }) {
   if (await findUserByUsername(uname)) throw new Error('That username already exists');
 
   const { salt, hash } = hashPassword(password);
-  const row = { username: uname, name: name || '', role, salt, password_hash: hash };
+  const row = { username: uname, name: name || '', role, salt, password_hash: hash, is_active: true };
   let created;
   if (!usingSupabase) {
     created = memCreate('users', row);
@@ -604,6 +604,19 @@ export async function createUser({ username, name, role, password }) {
     created = data;
   }
   return stripSecret(created);
+}
+
+// Enable/disable a login account (developer only).
+export async function setUserActive(id, isActive) {
+  const patch = { is_active: !!isActive };
+  if (!usingSupabase) {
+    const u = memUpdate('users', id, patch);
+    return u ? stripSecret(u) : null;
+  }
+  const { data, error } = await supabase.from('users')
+    .update(patch).eq('id', id).select('id, username, name, role, is_active, created_at').single();
+  if (error) throw error;
+  return data;
 }
 
 export async function deleteUser(id) {

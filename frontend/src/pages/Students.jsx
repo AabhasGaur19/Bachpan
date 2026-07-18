@@ -25,7 +25,8 @@ export default function Students() {
   const classesCol = useCollection('classes');
   const classes = classesCol.items || [];
   const { can } = useAuth();
-  const canFees = can('fees');
+  const canFees = can('fees');                       // full: totals, admission, summary
+  const canPayments = canFees || can('payments');    // can record + view payment history
 
   const [search, setSearch] = useState('');
   const [selectedClass, setSelectedClass] = useState(null);
@@ -122,7 +123,7 @@ export default function Students() {
             {s.registration_number ? ` · ${s.registration_number}` : ''}
           </p>
         </div>
-        {canFees && (left > 0
+        {canFees && Number(s.total_fees) > 0 && (left > 0
           ? <span className="badge-red shrink-0">{money(left)}</span>
           : <span className="badge-green shrink-0"><Icon name="check" size={13} /> Paid</span>)}
         <span className="shrink-0 text-slate-300"><Icon name="chevron-right" size={18} /></span>
@@ -327,6 +328,7 @@ export default function Students() {
       <StudentDetail
         student={detailFor}
         showFees={canFees}
+        canPayments={canPayments}
         onClose={() => setDetailFor(null)}
         onEdit={() => { setEditing(detailFor); setDetailFor(null); }}
         onFees={() => { setFeesFor(detailFor); setDetailFor(null); }}
@@ -335,7 +337,7 @@ export default function Students() {
         }}
       />
 
-      <StudentFees student={feesFor} onClose={() => setFeesFor(null)} onChanged={reload} />
+      <StudentFees student={feesFor} full={canFees} onClose={() => setFeesFor(null)} onChanged={reload} />
 
       <ClassManager
         open={showClasses}

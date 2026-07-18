@@ -14,6 +14,7 @@ create table if not exists users (
   role          text not null,
   salt          text not null,
   password_hash text not null,
+  is_active     boolean default true,   -- disabled accounts cannot log in (developer toggles)
   created_at    timestamptz default now()
 );
 

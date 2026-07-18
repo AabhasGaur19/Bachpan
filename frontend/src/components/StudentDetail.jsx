@@ -4,7 +4,7 @@ import { Avatar, KV } from './ui.jsx';
 import { money, feesLeft } from '../lib/format.js';
 
 // Full detail view for one student, opened by tapping a card.
-export default function StudentDetail({ student, showFees = true, onClose, onEdit, onFees, onDelete }) {
+export default function StudentDetail({ student, showFees = true, canPayments = false, onClose, onEdit, onFees, onDelete }) {
   const s = student;
   const total = Number(s?.total_fees) || 0;
   const paid = Number(s?.paid_fees) || 0;
@@ -39,9 +39,13 @@ export default function StudentDetail({ student, showFees = true, onClose, onEdi
               </div>
               <div className="px-1">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Left</p>
-                <p className={`mt-1 font-semibold ${left > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                  {left > 0 ? money(left) : 'Paid'}
-                </p>
+                {total > 0 ? (
+                  <p className={`mt-1 font-semibold ${left > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {left > 0 ? money(left) : 'Paid'}
+                  </p>
+                ) : (
+                  <p className="mt-1 font-semibold text-slate-300">—</p>
+                )}
               </div>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
@@ -51,6 +55,13 @@ export default function StudentDetail({ student, showFees = true, onClose, onEdi
               <Icon name="wallet" size={16} /> Payments & history
             </button>
           </div>
+          )}
+
+          {/* Coordinator: record/view payments only (no totals) */}
+          {!showFees && canPayments && (
+            <button className="btn-secondary w-full" onClick={onFees}>
+              <Icon name="wallet" size={16} /> Payments & history
+            </button>
           )}
 
           {/* Details */}

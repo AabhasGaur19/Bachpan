@@ -9,25 +9,32 @@ const ADMISSION_FEE = 300;
 const blankForm = () => ({ amount: '', paid_on: new Date().toISOString().slice(0, 10), note: '', method: 'cash' });
 
 // Fee history + add/remove payments for one student, plus the ₹300 admission fee.
-export default function StudentFees({ student, onClose, onChanged }) {
+// full=false (coordinator): shows only the REMAINING amount, not total/paid.
+export default function StudentFees({ student, full = true, onClose, onChanged }) {
   const [payments, setPayments] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState(blankForm);
   const [collecting, setCollecting] = useState(false);  // admission collect flow open
   const [admMethod, setAdmMethod] = useState('cash');
+  const [remaining, setRemaining] = useState(undefined); // coordinator: number | null (not set) | undefined (loading)
 
   const open = !!student;
 
   async function load() {
     if (!student) return;
     setError('');
-    try { setPayments(await api.listPayments(student.id)); }
-    catch (e) { setError(e.message); setPayments([]); }
+    try {
+      setPayments(await api.listPayments(student.id));
+      if (!full) {
+        const s = await api.getStudent(student.id);
+        setRemaining(s.fees_left == null ? null : Math.max(Number(s.fees_left) || 0, 0));
+      }
+    } catch (e) { setError(e.message); setPayments([]); }
   }
 
   useEffect(() => {
-    setPayments(null);
+    setPayments(null); setRemaining(undefined);
     setForm(blankForm());
     setCollecting(false); setAdmMethod('cash');
     load();
@@ -79,7 +86,8 @@ export default function StudentFees({ student, onClose, onChanged }) {
         <div className="space-y-5">
           <ErrorBanner message={error} />
 
-          {/* Tuition summary */}
+          {/* Tuition summary — hidden for coordinators (no totals) */}
+          {full && (
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4">
             <div className="grid grid-cols-3 divide-x divide-slate-200 text-center">
               <div className="px-1">
@@ -92,9 +100,13 @@ export default function StudentFees({ student, onClose, onChanged }) {
               </div>
               <div className="px-1">
                 <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Left</p>
-                <p className={`mt-1 font-semibold ${left > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                  {left > 0 ? money(left) : 'Paid'}
-                </p>
+                {total > 0 ? (
+                  <p className={`mt-1 font-semibold ${left > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {left > 0 ? money(left) : 'Paid'}
+                  </p>
+                ) : (
+                  <p className="mt-1 font-semibold text-slate-300">—</p>
+                )}
               </div>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
@@ -102,6 +114,23 @@ export default function StudentFees({ student, onClose, onChanged }) {
             </div>
             <p className="mt-1.5 text-right text-xs text-slate-400">{pct}% collected</p>
           </div>
+          )}
+
+          {/* Coordinator: remaining amount only */}
+          {!full && (
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4 text-center">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">Remaining fees</p>
+              {remaining === undefined ? (
+                <p className="mt-1 text-xl font-semibold text-slate-300">…</p>
+              ) : remaining === null ? (
+                <p className="mt-1 text-sm font-medium text-slate-400">Fees not set yet</p>
+              ) : remaining <= 0 ? (
+                <p className="mt-1 text-xl font-semibold text-emerald-600">Paid</p>
+              ) : (
+                <p className="mt-1 text-xl font-semibold text-rose-600">{money(remaining)} left</p>
+              )}
+            </div>
+          )}
 
           {/* Admission form fee — highlighted */}
           <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4">

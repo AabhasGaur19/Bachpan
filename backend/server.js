@@ -7,13 +7,23 @@ import {
   listLeaves, addLeave, addLeaveRange, deleteLeave, listTeachers,
   payrollPreview, getPayroll, generatePayroll, payrollMonths,
   authenticate, createSession, getSessionUser, deleteSession, ensureDefaultUsers,
-  listUsers, createUser, deleteUser,
+  listUsers, createUser, deleteUser, setUserActive,
 } from './db/store.js';
 import { featuresForRole, ROLE_FEATURES } from './auth/roles.js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Coordinator schedule: Mon–Sat, 07:00–13:30 India time.
+function coordinatorAllowedNow(d = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d);
+  const val = (t) => parts.find((p) => p.type === t)?.value;
+  const mins = parseInt(val('hour'), 10) * 60 + parseInt(val('minute'), 10);
+  return val('weekday') !== 'Sun' && mins >= 7 * 60 && mins <= 13 * 60 + 30;
+}
 
 // Attach the logged-in user (if a valid token is sent) to every request.
 app.use(async (req, _res, next) => {
@@ -22,6 +32,19 @@ app.use(async (req, _res, next) => {
   if (token) {
     try { req.user = await getSessionUser(token); } catch { /* ignore */ }
     req.token = token;
+  }
+  // Disabled accounts are treated as logged out.
+  if (req.user && req.user.is_active === false) req.user = null;
+  next();
+});
+
+// Enforce the coordinator's allowed hours on every protected request.
+app.use((req, res, next) => {
+  if (req.user?.role === 'coordinator'
+      && req.path !== '/api/health'
+      && !req.path.startsWith('/api/auth/')
+      && !coordinatorAllowedNow()) {
+    return res.status(403).json({ error: 'Access is available Monday to Saturday, 7:00 AM to 1:30 PM only.' });
   }
   next();
 });
@@ -43,16 +66,48 @@ function requireFeature(feature) {
 
 const userCan = (req, feature) => !!req.user && featuresForRole(req.user.role).includes(feature);
 
-// Remove fee fields from a student for users without the 'fees' feature.
-function stripFees(student) {
+// Allow if the user has ANY of the listed features.
+function requireAnyFeature(features) {
+  return (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: 'Please log in' });
+    const has = featuresForRole(req.user.role);
+    if (!features.some((f) => has.includes(f))) {
+      return res.status(403).json({ error: 'You do not have access to this section' });
+    }
+    next();
+  };
+}
+
+// What fee info a user may see on a student:
+//  - 'fees' (admin): everything (total_fees, paid_fees)
+//  - 'payments' (coordinator): only the remaining amount (fees_left), no total/paid
+//  - neither: nothing
+function feeView(req, student) {
+  if (userCan(req, 'fees')) return student;
   const { total_fees, paid_fees, ...rest } = student;
+  if (userCan(req, 'payments')) {
+    const total = Number(total_fees) || 0;
+    // fees_left is null when the total fees haven't been set (so the UI can
+    // show nothing instead of a misleading "Paid").
+    return { ...rest, fees_left: total > 0 ? Math.max(total - (Number(paid_fees) || 0), 0) : null };
+  }
   return rest;
 }
-// Prevent users without 'fees' from setting fee fields via create/update.
+// Prevent users without 'fees' from setting fee fields via create/update,
+// and always drop computed fields that aren't real columns.
 function stripFeesFromBody(req, _res, next) {
+  delete req.body.fees_left; // computed (coordinator's remaining) — not a column
   if (!userCan(req, 'fees')) {
     delete req.body.total_fees;
     delete req.body.paid_fees;
+  }
+  next();
+}
+
+// Drop teacher fields that are computed on read (not real columns).
+function stripTeacherComputed(req, _res, next) {
+  for (const k of ['full_this_month', 'half_this_month', 'chargeable_days', 'unused_paid_leaves']) {
+    delete req.body[k];
   }
   next();
 }
@@ -68,6 +123,10 @@ app.post('/api/auth/login', async (req, res, next) => {
     const { username, password } = req.body;
     const user = await authenticate(username, password);
     if (!user) return res.status(401).json({ error: 'Invalid username or password' });
+    if (user.is_active === false) return res.status(403).json({ error: 'This account has been disabled.' });
+    if (user.role === 'coordinator' && !coordinatorAllowedNow()) {
+      return res.status(403).json({ error: 'Coordinator access is available Monday to Saturday, 7:00 AM to 1:30 PM only.' });
+    }
     const token = await createSession(user.id);
     res.json({ token, user: { ...user, features: featuresForRole(user.role) } });
   } catch (e) { next(e); }
@@ -96,6 +155,18 @@ app.post('/api/users', requireFeature('users'), async (req, res, next) => {
   } catch (e) {
     res.status(400).json({ error: e.message }); // validation errors (dupe username, etc.)
   }
+});
+
+// Enable/disable an account (is_active).
+app.put('/api/users/:id', requireFeature('users'), async (req, res, next) => {
+  try {
+    if (String(req.params.id) === String(req.user.id) && req.body.is_active === false) {
+      return res.status(400).json({ error: 'You cannot disable your own account' });
+    }
+    const updated = await setUserActive(req.params.id, req.body.is_active);
+    if (!updated) return res.status(404).json({ error: 'User not found' });
+    res.json(updated);
+  } catch (e) { next(e); }
 });
 
 app.delete('/api/users/:id', requireFeature('users'), async (req, res, next) => {
@@ -144,12 +215,19 @@ function crudRoutes(table) {
   return router;
 }
 
-// Students list — hides fee fields from users without the 'fees' feature.
+// Students list — fee visibility depends on the user's role (see feeView).
 app.get('/api/students', requireFeature('students'), async (req, res, next) => {
   try {
-    let rows = await list('students');
-    if (!userCan(req, 'fees')) rows = rows.map(stripFees);
+    const rows = (await list('students')).map((s) => feeView(req, s));
     res.json(rows);
+  } catch (e) { next(e); }
+});
+// Single student (used by the fees panel to read the up-to-date remaining amount).
+app.get('/api/students/:id', requireFeature('students'), async (req, res, next) => {
+  try {
+    const s = (await list('students')).find((x) => String(x.id) === String(req.params.id));
+    if (!s) return res.status(404).json({ error: 'Not found' });
+    res.json(feeView(req, s));
   } catch (e) { next(e); }
 });
 app.use('/api/students', requireFeature('students'), stripFeesFromBody, crudRoutes('students'));
@@ -158,7 +236,7 @@ app.use('/api/students', requireFeature('students'), stripFeesFromBody, crudRout
 app.get('/api/teachers', requireFeature('teachers'), async (_req, res, next) => {
   try { res.json(await listTeachers()); } catch (e) { next(e); }
 });
-app.use('/api/teachers', requireFeature('teachers'), crudRoutes('teachers'));
+app.use('/api/teachers', requireFeature('teachers'), stripTeacherComputed, crudRoutes('teachers'));
 app.use('/api/inventory', requireFeature('inventory'), crudRoutes('inventory'));
 // Classes are shared (students & teachers both use them) -> any logged-in user.
 app.use('/api/classes', requireAuth, crudRoutes('classes'));
@@ -178,13 +256,14 @@ app.get('/api/payments/summary/:month', requireFeature('fees'), async (req, res,
 });
 
 // ---- Fee payments (installment history) for a student ----
-app.get('/api/students/:id/payments', requireFeature('fees'), async (req, res, next) => {
+// 'payments' (coordinator) can record + view; deleting stays 'fees' (admin).
+app.get('/api/students/:id/payments', requireAnyFeature(['fees', 'payments']), async (req, res, next) => {
   try {
     res.json(await listPayments(req.params.id));
   } catch (e) { next(e); }
 });
 
-app.post('/api/students/:id/payments', requireFeature('fees'), async (req, res, next) => {
+app.post('/api/students/:id/payments', requireAnyFeature(['fees', 'payments']), async (req, res, next) => {
   try {
     const { amount } = req.body;
     if (!amount || Number(amount) <= 0) {

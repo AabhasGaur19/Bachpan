@@ -73,9 +73,12 @@ export const api = {
   logout: () => request('/api/auth/logout', { method: 'POST' }),
   me: () => request('/api/auth/me'),
 
+  getStudent: (id) => request(`/api/students/${id}`),
+
   // User management (developer)
   listUsers: () => request('/api/users'),
   createUser: (data) => request('/api/users', { method: 'POST', body: JSON.stringify(data) }),
+  setUserActive: (id, is_active) => request(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify({ is_active }) }),
   deleteUser: (id) => request(`/api/users/${id}`, { method: 'DELETE' }),
   roles: () => request('/api/roles'),
 };
